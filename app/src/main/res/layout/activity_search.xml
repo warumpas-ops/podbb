@@ -3,60 +3,111 @@
     android:layout_width="match_parent"
     android:layout_height="match_parent"
     android:orientation="vertical"
-    android:background="@color/bg_primary">
+    android:background="@color/bg">
 
+    <!-- Header Bar -->
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="48dp"
+        android:orientation="horizontal"
+        android:gravity="center_vertical"
+        android:background="@color/header_bg"
+        android:paddingLeft="10dp"
+        android:paddingRight="12dp">
+
+        <Button
+            android:id="@+id/btnBack"
+            android:layout_width="wrap_content"
+            android:layout_height="32dp"
+            android:text="← Back"
+            android:textColor="@color/text_primary"
+            android:background="@drawable/btn_action"
+            android:textSize="12sp"
+            android:paddingLeft="10dp"
+            android:paddingRight="10dp" />
+
+        <TextView
+            android:layout_width="0dp"
+            android:layout_height="wrap_content"
+            android:layout_weight="1"
+            android:gravity="center"
+            android:text="Discover Podcasts"
+            android:textColor="@color/text_primary"
+            android:textSize="15sp"
+            android:textStyle="bold" />
+
+        <View
+            android:layout_width="60dp"
+            android:layout_height="1dp" />
+    </LinearLayout>
+
+    <View
+        android:layout_width="match_parent"
+        android:layout_height="1dp"
+        android:background="@color/divider" />
+
+    <!-- Search Input Bar -->
     <LinearLayout
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
         android:orientation="horizontal"
-        android:padding="8dp">
-
-        <TextView
-            android:id="@+id/tvBack"
-            android:layout_width="wrap_content"
-            android:layout_height="wrap_content"
-            android:padding="8dp"
-            android:text="[back]"
-            android:textColor="@color/text_muted"
-            android:textSize="13sp"
-            android:typeface="monospace" />
+        android:padding="10dp"
+        android:background="@color/surface"
+        android:gravity="center_vertical">
 
         <EditText
             android:id="@+id/etSearch"
             android:layout_width="0dp"
-            android:layout_height="wrap_content"
+            android:layout_height="38dp"
             android:layout_weight="1"
-            android:background="@color/bg_secondary"
-            android:hint="search podcasts..."
-            android:textColorHint="@color/text_muted"
+            android:background="@drawable/input_bg"
+            android:hint="Search title, creator, or topic..."
+            android:textColorHint="@color/text_secondary"
             android:textColor="@color/text_primary"
             android:textSize="13sp"
-            android:typeface="monospace"
-            android:padding="8dp"
+            android:paddingLeft="12dp"
+            android:paddingRight="12dp"
             android:inputType="text"
             android:imeOptions="actionSearch"
             android:singleLine="true" />
+
+        <Button
+            android:id="@+id/btnDoSearch"
+            android:layout_width="wrap_content"
+            android:layout_height="38dp"
+            android:text="Search"
+            android:textColor="@color/text_primary"
+            android:background="@drawable/btn_accent"
+            android:textSize="12sp"
+            android:layout_marginLeft="8dp"
+            android:paddingLeft="14dp"
+            android:paddingRight="14dp" />
     </LinearLayout>
 
-    <View android:layout_width="match_parent" android:layout_height="1dp" android:background="@color/divider" />
+    <View
+        android:layout_width="match_parent"
+        android:layout_height="1dp"
+        android:background="@color/divider" />
 
+    <!-- Status Banner -->
     <TextView
         android:id="@+id/tvStatus"
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
-        android:padding="12dp"
-        android:text=""
-        android:textColor="@color/text_muted"
-        android:textSize="12sp"
-        android:typeface="monospace"
-        android:visibility="gone" />
+        android:padding="10dp"
+        android:text="Type keywords above to search iTunes directory"
+        android:textColor="@color/text_secondary"
+        android:textSize="11sp"
+        android:gravity="center" />
 
     <ListView
         android:id="@+id/listResults"
         android:layout_width="match_parent"
         android:layout_height="0dp"
         android:layout_weight="1"
-        android:background="@color/bg_primary"
         android:divider="@color/divider"
-        android:dividerHeight="1dp" />
+        android:dividerHeight="1dp"
+        android:paddingLeft="10dp"
+        android:paddingRight="10dp" />
+
 </LinearLayout>

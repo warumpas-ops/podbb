@@ -3,17 +3,22 @@
     android:layout_width="match_parent"
     android:layout_height="wrap_content"
     android:orientation="vertical"
-    android:padding="12dp"
-    android:background="@drawable/row_selector">
+    android:paddingLeft="14dp"
+    android:paddingRight="14dp"
+    android:paddingTop="12dp"
+    android:paddingBottom="12dp"
+    android:background="@drawable/card_selector"
+    android:layout_marginTop="4dp"
+    android:layout_marginBottom="4dp">
 
     <TextView
         android:id="@+id/tvTitle"
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
-        android:text=""
+        android:text="Podcast Title"
         android:textColor="@color/text_primary"
-        android:textSize="13sp"
-        android:typeface="monospace"
+        android:textSize="14sp"
+        android:textStyle="bold"
         android:ellipsize="end"
         android:maxLines="1" />
 
@@ -22,18 +27,33 @@
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
         android:paddingTop="2dp"
-        android:text=""
-        android:textColor="@color/text_muted"
-        android:textSize="11sp"
-        android:typeface="monospace" />
+        android:text="Author Name"
+        android:textColor="@color/text_secondary"
+        android:textSize="12sp"
+        android:singleLine="true" />
 
-    <TextView
-        android:id="@+id/tvGenre"
+    <LinearLayout
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
-        android:paddingTop="2dp"
-        android:text=""
-        android:textColor="@color/text_muted"
-        android:textSize="10sp"
-        android:typeface="monospace" />
+        android:orientation="horizontal"
+        android:gravity="center_vertical"
+        android:paddingTop="4dp">
+
+        <TextView
+            android:id="@+id/tvGenre"
+            android:layout_width="0dp"
+            android:layout_height="wrap_content"
+            android:layout_weight="1"
+            android:text="Category"
+            android:textColor="@color/accent_blue"
+            android:textSize="11sp" />
+
+        <TextView
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="[tap to view]"
+            android:textColor="@color/text_secondary"
+            android:textSize="11sp" />
+    </LinearLayout>
+
 </LinearLayout>

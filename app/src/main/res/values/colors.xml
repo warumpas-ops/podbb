@@ -1,10 +1,18 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
-    <color name="bg_primary">#0D0F11</color>
-    <color name="bg_secondary">#1A1C20</color>
-    <color name="text_primary">#E0E2E6</color>
-    <color name="text_muted">#555A64</color>
-    <color name="accent_green">#A8D8A8</color>
-    <color name="danger_red">#EF4444</color>
-    <color name="divider">#1E2126</color>
+    <color name="bg">#0F0F10</color>
+    <color name="header_bg">#141416</color>
+    <color name="surface">#171719</color>
+    <color name="surface_pressed">#222226</color>
+    <color name="input_bg">#1C1C1F</color>
+    <color name="divider">#252528</color>
+    <color name="btn_bg">#1F1F23</color>
+    <color name="btn_border">#323237</color>
+    <color name="text_primary">#F2F2F2</color>
+    <color name="text_secondary">#808086</color>
+    <color name="accent_blue">#00A8DF</color>
+    <color name="accent_blue_dark">#007EA7</color>
+    <color name="accent_pill_bg">#102838</color>
+    <color name="accent_pill_border">#00557A</color>
+    <color name="danger_red">#D32F2F</color>
 </resources>

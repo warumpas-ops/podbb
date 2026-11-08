@@ -29,29 +29,30 @@ public class PlayerService extends Service {
     public void onCreate() {
         super.onCreate();
         db = new DatabaseHelper(this);
+        initMediaPlayer();
+    }
+
+    private void initMediaPlayer() {
+        if (mediaPlayer != null) {
+            try { mediaPlayer.release(); } catch (Exception ignored) {}
+        }
         mediaPlayer = new MediaPlayer();
         mediaPlayer.setWakeMode(this, PowerManager.PARTIAL_WAKE_LOCK);
-        mediaPlayer.setOnPreparedListener(new MediaPlayer.OnPreparedListener() {
-            public void onPrepared(MediaPlayer mp) {
-                isPrepared = true;
-                if (currentEpisode != null && currentEpisode.positionSeconds > 0) {
-                    mp.seekTo(currentEpisode.positionSeconds * 1000);
-                }
-                mp.start();
-                updateNotification();
+        mediaPlayer.setOnPreparedListener(mp -> {
+            isPrepared = true;
+            if (currentEpisode != null && currentEpisode.positionSeconds > 0) {
+                mp.seekTo(currentEpisode.positionSeconds * 1000);
             }
+            mp.start();
+            updateNotification();
         });
-        mediaPlayer.setOnCompletionListener(new MediaPlayer.OnCompletionListener() {
-            public void onCompletion(MediaPlayer mp) {
-                if (currentEpisode != null) db.markListened(currentEpisode.id);
-                updateNotification();
-            }
+        mediaPlayer.setOnCompletionListener(mp -> {
+            if (currentEpisode != null) db.markListened(currentEpisode.id);
+            updateNotification();
         });
-        mediaPlayer.setOnErrorListener(new MediaPlayer.OnErrorListener() {
-            public boolean onError(MediaPlayer mp, int what, int extra) {
-                isPrepared = false;
-                return false;
-            }
+        mediaPlayer.setOnErrorListener((mp, what, extra) -> {
+            isPrepared = false;
+            return false;
         });
     }
 
@@ -72,6 +73,7 @@ public class PlayerService extends Service {
         try {
             currentEpisode = episode;
             isPrepared = false;
+            if (mediaPlayer == null) initMediaPlayer();
             mediaPlayer.reset();
             if (episode.filePath != null && !episode.filePath.isEmpty()) {
                 mediaPlayer.setDataSource(episode.filePath);
@@ -86,7 +88,7 @@ public class PlayerService extends Service {
     }
 
     public void togglePlayPause() {
-        if (!isPrepared) return;
+        if (!isPrepared || mediaPlayer == null) return;
         if (mediaPlayer.isPlaying()) {
             mediaPlayer.pause();
             savePosition();
@@ -97,47 +99,61 @@ public class PlayerService extends Service {
     }
 
     public boolean isPlaying() {
-        return isPrepared && mediaPlayer.isPlaying();
+        return isPrepared && mediaPlayer != null && mediaPlayer.isPlaying();
     }
 
     public int getCurrentPosition() {
-        if (!isPrepared) return 0;
-        return mediaPlayer.getCurrentPosition();
+        if (!isPrepared || mediaPlayer == null) return 0;
+        try {
+            return mediaPlayer.getCurrentPosition();
+        } catch (Exception e) {
+            return 0;
+        }
     }
 
     public int getDuration() {
-        if (!isPrepared) return 0;
-        return mediaPlayer.getDuration();
+        if (!isPrepared || mediaPlayer == null) return 0;
+        try {
+            return mediaPlayer.getDuration();
+        } catch (Exception e) {
+            return 0;
+        }
     }
 
     public void seekTo(int ms) {
-        if (isPrepared) mediaPlayer.seekTo(ms);
+        if (isPrepared && mediaPlayer != null) {
+            try {
+                mediaPlayer.seekTo(ms);
+            } catch (Exception ignored) {}
+        }
     }
 
     public void skipForward() {
-        if (!isPrepared) return;
-        int pos = mediaPlayer.getCurrentPosition() + 30000;
-        int dur = mediaPlayer.getDuration();
-        mediaPlayer.seekTo(Math.min(pos, dur));
+        if (!isPrepared || mediaPlayer == null) return;
+        try {
+            int pos = mediaPlayer.getCurrentPosition() + 30000;
+            int dur = mediaPlayer.getDuration();
+            mediaPlayer.seekTo(Math.min(pos, dur));
+        } catch (Exception ignored) {}
     }
 
     public void skipBack() {
-        if (!isPrepared) return;
-        int pos = mediaPlayer.getCurrentPosition() - 30000;
-        mediaPlayer.seekTo(Math.max(pos, 0));
+        if (!isPrepared || mediaPlayer == null) return;
+        try {
+            int pos = mediaPlayer.getCurrentPosition() - 30000;
+            mediaPlayer.seekTo(Math.max(pos, 0));
+        } catch (Exception ignored) {}
     }
 
     public void setSpeed(float speed) {
         this.playbackSpeed = speed;
         try {
-            if (android.os.Build.VERSION.SDK_INT >= 23) {
+            if (android.os.Build.VERSION.SDK_INT >= 23 && mediaPlayer != null) {
                 android.media.PlaybackParams params = mediaPlayer.getPlaybackParams();
                 params.setSpeed(speed);
                 mediaPlayer.setPlaybackParams(params);
             }
-        } catch (Exception e) {
-            // ignore on older APIs
-        }
+        } catch (Exception ignored) {}
     }
 
     public float getSpeed() { return playbackSpeed; }
@@ -147,8 +163,10 @@ public class PlayerService extends Service {
     public boolean isPrepared() { return isPrepared; }
 
     private void savePosition() {
-        if (currentEpisode != null && isPrepared) {
-            db.updatePosition(currentEpisode.id, mediaPlayer.getCurrentPosition() / 1000);
+        if (currentEpisode != null && isPrepared && mediaPlayer != null) {
+            try {
+                db.updatePosition(currentEpisode.id, mediaPlayer.getCurrentPosition() / 1000);
+            } catch (Exception ignored) {}
         }
     }
 
@@ -160,8 +178,8 @@ public class PlayerService extends Service {
         Intent openIntent = new Intent(this, PlayerActivity.class);
         PendingIntent openPi = PendingIntent.getActivity(this, 0, openIntent, PendingIntent.FLAG_UPDATE_CURRENT);
 
-        String title = currentEpisode != null ? currentEpisode.title : "PodBB";
-        String status = isPrepared && mediaPlayer.isPlaying() ? "▶ playing" : "⏸ paused";
+        String title = currentEpisode != null && currentEpisode.title != null ? currentEpisode.title : "PodBB";
+        String status = isPrepared && mediaPlayer != null && mediaPlayer.isPlaying() ? "▶ Playing" : "⏸ Paused";
 
         Notification.Builder builder = new Notification.Builder(this)
                 .setContentTitle(title)
@@ -175,14 +193,18 @@ public class PlayerService extends Service {
 
     private void updateNotification() {
         NotificationManager nm = (NotificationManager) getSystemService(NOTIFICATION_SERVICE);
-        nm.notify(NOTIF_ID, buildNotification());
+        if (nm != null) {
+            nm.notify(NOTIF_ID, buildNotification());
+        }
     }
 
     @Override
     public void onDestroy() {
         savePosition();
         if (mediaPlayer != null) {
-            mediaPlayer.release();
+            try {
+                mediaPlayer.release();
+            } catch (Exception ignored) {}
             mediaPlayer = null;
         }
         if (db != null) db.close();

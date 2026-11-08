@@ -4,29 +4,43 @@ import android.app.Activity;
 import android.content.ComponentName;
 import android.content.Intent;
 import android.content.ServiceConnection;
+import android.graphics.Bitmap;
 import android.os.Bundle;
 import android.os.Handler;
 import android.os.IBinder;
 import android.view.View;
+import android.widget.Button;
+import android.widget.ImageView;
 import android.widget.SeekBar;
 import android.widget.TextView;
+import android.widget.Toast;
 
 public class PlayerActivity extends Activity {
     private PlayerService playerService;
     private boolean bound = false;
-    private Handler handler = new Handler();
-    private SeekBar seekBar;
-    private TextView tvCurrentTime, tvDuration, tvPlayPause, tvEpisodeTitle, tvPodcastName;
-    private float currentSpeed = 1.0f;
+    private final Handler handler = new Handler();
+    private DatabaseHelper db;
 
+    private ImageView imgArtwork;
+    private TextView tvSourceBadge;
+    private TextView tvEpisodeTitle;
+    private TextView tvPodcastName;
+    private TextView tvCurrentTime;
+    private TextView tvDuration;
+    private SeekBar seekBar;
+    private Button btnPlayPause;
+    private Button btnDownload;
+
+    private float currentSpeed = 1.0f;
     private long episodeId;
-    private String episodeTitle, audioUrl, filePath, podcastTitle;
+    private String episodeTitle, audioUrl, filePath, podcastTitle, artworkUrl;
     private int durationSeconds, positionSeconds;
 
-    private ServiceConnection connection = new ServiceConnection() {
+    private final ServiceConnection connection = new ServiceConnection() {
         public void onServiceConnected(ComponentName name, IBinder service) {
             playerService = ((PlayerService.LocalBinder) service).getService();
             bound = true;
+
             Episode curr = playerService.getCurrentEpisode();
             if (curr == null || curr.id != episodeId) {
                 Episode ep = new Episode();
@@ -36,10 +50,13 @@ public class PlayerActivity extends Activity {
                 ep.filePath = filePath;
                 ep.durationSeconds = durationSeconds;
                 ep.positionSeconds = positionSeconds;
+                ep.podcastTitle = podcastTitle;
                 playerService.playEpisode(ep);
             }
             startSeekBarUpdate();
+            updatePlayPauseBtn();
         }
+
         public void onServiceDisconnected(ComponentName name) {
             bound = false;
         }
@@ -49,6 +66,7 @@ public class PlayerActivity extends Activity {
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
         setContentView(R.layout.activity_player);
+        db = new DatabaseHelper(this);
 
         episodeId = getIntent().getLongExtra("episode_id", 0);
         episodeTitle = getIntent().getStringExtra("episode_title");
@@ -57,46 +75,61 @@ public class PlayerActivity extends Activity {
         durationSeconds = getIntent().getIntExtra("episode_duration", 0);
         positionSeconds = getIntent().getIntExtra("episode_position", 0);
         podcastTitle = getIntent().getStringExtra("podcast_title");
+        artworkUrl = getIntent().getStringExtra("podcast_artwork");
 
+        imgArtwork = (ImageView) findViewById(R.id.imgArtwork);
+        tvSourceBadge = (TextView) findViewById(R.id.tvSourceBadge);
         tvEpisodeTitle = (TextView) findViewById(R.id.tvEpisodeTitle);
         tvPodcastName = (TextView) findViewById(R.id.tvPodcastName);
         tvCurrentTime = (TextView) findViewById(R.id.tvCurrentTime);
         tvDuration = (TextView) findViewById(R.id.tvDuration);
-        tvPlayPause = (TextView) findViewById(R.id.btnPlayPause);
         seekBar = (SeekBar) findViewById(R.id.seekBar);
+        btnPlayPause = (Button) findViewById(R.id.btnPlayPause);
+        btnDownload = (Button) findViewById(R.id.btnDownload);
 
-        tvEpisodeTitle.setText(episodeTitle);
-        tvPodcastName.setText(podcastTitle);
+        Button btnBack = (Button) findViewById(R.id.btnBack);
+        btnBack.setOnClickListener(v -> finish());
+
+        tvEpisodeTitle.setText(episodeTitle != null ? episodeTitle : "Episode");
+        tvPodcastName.setText(podcastTitle != null ? podcastTitle : "Podcast");
+
+        updateSourceBadge();
+
+        // Load artwork
+        if (artworkUrl != null && !artworkUrl.isEmpty()) {
+            new Thread(() -> {
+                Bitmap bmp = HttpHelper.fetchBitmap(artworkUrl, 256, 256);
+                if (bmp != null) {
+                    runOnUiThread(() -> imgArtwork.setImageBitmap(bmp));
+                }
+            }).start();
+        }
 
         if (durationSeconds > 0) {
             seekBar.setMax(durationSeconds * 1000);
             tvDuration.setText(formatMs(durationSeconds * 1000));
         }
 
-        ((TextView) findViewById(R.id.tvBack)).setOnClickListener(new View.OnClickListener() {
-            public void onClick(View v) { finish(); }
-        });
-
-        tvPlayPause.setOnClickListener(new View.OnClickListener() {
-            public void onClick(View v) {
-                if (bound) {
-                    playerService.togglePlayPause();
-                    updatePlayPauseBtn();
-                }
+        btnPlayPause.setOnClickListener(v -> {
+            if (bound && playerService != null) {
+                playerService.togglePlayPause();
+                updatePlayPauseBtn();
             }
         });
 
-        ((TextView) findViewById(R.id.btnSkipBack)).setOnClickListener(new View.OnClickListener() {
-            public void onClick(View v) { if (bound) playerService.skipBack(); }
+        ((Button) findViewById(R.id.btnSkipBack)).setOnClickListener(v -> {
+            if (bound && playerService != null) playerService.skipBack();
         });
 
-        ((TextView) findViewById(R.id.btnSkipForward)).setOnClickListener(new View.OnClickListener() {
-            public void onClick(View v) { if (bound) playerService.skipForward(); }
+        ((Button) findViewById(R.id.btnSkipForward)).setOnClickListener(v -> {
+            if (bound && playerService != null) playerService.skipForward();
         });
 
         seekBar.setOnSeekBarChangeListener(new SeekBar.OnSeekBarChangeListener() {
             public void onProgressChanged(SeekBar sb, int progress, boolean fromUser) {
-                if (fromUser && bound) playerService.seekTo(progress);
+                if (fromUser && bound && playerService != null) {
+                    playerService.seekTo(progress);
+                }
             }
             public void onStartTrackingTouch(SeekBar sb) {}
             public void onStopTrackingTouch(SeekBar sb) {}
@@ -104,9 +137,61 @@ public class PlayerActivity extends Activity {
 
         setupSpeedButtons();
 
+        // Download offline button
+        btnDownload.setOnClickListener(v -> {
+            if (filePath != null && !filePath.isEmpty()) {
+                Toast.makeText(this, "Already downloaded on device", Toast.LENGTH_SHORT).show();
+                return;
+            }
+            btnDownload.setText("Downloading...");
+            btnDownload.setEnabled(false);
+            Episode ep = new Episode();
+            ep.id = episodeId;
+            ep.audioUrl = audioUrl;
+
+            EpisodeDownloader.download(this, ep, db, new EpisodeDownloader.Callback() {
+                @Override
+                public void onProgress(final int percent) {
+                    runOnUiThread(() -> btnDownload.setText("Downloading " + percent + "%"));
+                }
+
+                @Override
+                public void onComplete(final String path) {
+                    runOnUiThread(() -> {
+                        filePath = path;
+                        btnDownload.setText("✓ Downloaded Offline");
+                        btnDownload.setEnabled(true);
+                        updateSourceBadge();
+                        Toast.makeText(PlayerActivity.this, "Saved to device for offline playback", Toast.LENGTH_SHORT).show();
+                    });
+                }
+
+                @Override
+                public void onError(final String error) {
+                    runOnUiThread(() -> {
+                        btnDownload.setText("[ Download Episode for Offline ]");
+                        btnDownload.setEnabled(true);
+                        Toast.makeText(PlayerActivity.this, "Download error: " + error, Toast.LENGTH_SHORT).show();
+                    });
+                }
+            });
+        });
+
         Intent serviceIntent = new Intent(this, PlayerService.class);
         startService(serviceIntent);
         bindService(serviceIntent, connection, BIND_AUTO_CREATE);
+    }
+
+    private void updateSourceBadge() {
+        if (filePath != null && !filePath.isEmpty()) {
+            tvSourceBadge.setText("[LOCAL OFFLINE]");
+            tvSourceBadge.setTextColor(0xFF00A8DF);
+            btnDownload.setText("✓ Downloaded Offline");
+        } else {
+            tvSourceBadge.setText("[STREAMING]");
+            tvSourceBadge.setTextColor(0xFF808086);
+            btnDownload.setText("[ Download Episode for Offline ]");
+        }
     }
 
     private void setupSpeedButtons() {
@@ -114,14 +199,12 @@ public class PlayerActivity extends Activity {
         final float[] speeds = {0.75f, 1.0f, 1.25f, 1.5f, 2.0f};
         for (int i = 0; i < ids.length; i++) {
             final float speed = speeds[i];
-            final TextView btn = (TextView) findViewById(ids[i]);
-            btn.setOnClickListener(new View.OnClickListener() {
-                public void onClick(View v) {
-                    if (bound) {
-                        playerService.setSpeed(speed);
-                        currentSpeed = speed;
-                        updateSpeedButtons();
-                    }
+            final Button btn = (Button) findViewById(ids[i]);
+            btn.setOnClickListener(v -> {
+                if (bound && playerService != null) {
+                    playerService.setSpeed(speed);
+                    currentSpeed = speed;
+                    updateSpeedButtons();
                 }
             });
         }
@@ -131,27 +214,29 @@ public class PlayerActivity extends Activity {
         int[] ids = {R.id.btnSpeed075, R.id.btnSpeed100, R.id.btnSpeed125, R.id.btnSpeed150, R.id.btnSpeed200};
         float[] speeds = {0.75f, 1.0f, 1.25f, 1.5f, 2.0f};
         for (int i = 0; i < ids.length; i++) {
-            TextView btn = (TextView) findViewById(ids[i]);
-            btn.setTextColor(speeds[i] == currentSpeed ? 0xFFA8D8A8 : 0xFF555A64);
+            Button btn = (Button) findViewById(ids[i]);
+            btn.setTextColor(speeds[i] == currentSpeed ? 0xFF00A8DF : 0xFF808086);
         }
     }
 
     private void updatePlayPauseBtn() {
-        if (bound) {
-            tvPlayPause.setText(playerService.isPlaying() ? "[pause]" : "[play]");
+        if (bound && playerService != null) {
+            btnPlayPause.setText(playerService.isPlaying() ? "Pause" : "Play");
         }
     }
 
     private void startSeekBarUpdate() {
         handler.postDelayed(new Runnable() {
             public void run() {
-                if (bound && playerService.isPrepared()) {
+                if (bound && playerService != null && playerService.isPrepared()) {
                     int pos = playerService.getCurrentPosition();
                     int dur = playerService.getDuration();
-                    seekBar.setMax(dur);
-                    seekBar.setProgress(pos);
-                    tvCurrentTime.setText(formatMs(pos));
-                    tvDuration.setText(formatMs(dur));
+                    if (dur > 0) {
+                        seekBar.setMax(dur);
+                        seekBar.setProgress(pos);
+                        tvCurrentTime.setText(formatMs(pos));
+                        tvDuration.setText(formatMs(dur));
+                    }
                     updatePlayPauseBtn();
                 }
                 handler.postDelayed(this, 500);
@@ -175,6 +260,7 @@ public class PlayerActivity extends Activity {
             unbindService(connection);
             bound = false;
         }
+        db.close();
         super.onDestroy();
     }
 }

@@ -1,87 +1,204 @@
 <?xml version="1.0" encoding="utf-8"?>
 <LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:id="@+id/mainRoot"
     android:layout_width="match_parent"
     android:layout_height="match_parent"
     android:orientation="vertical"
-    android:background="@color/bg_primary">
+    android:background="@color/bg">
 
-    <TextView
-        android:id="@+id/tvTitle"
-        android:layout_width="match_parent"
-        android:layout_height="wrap_content"
-        android:padding="16dp"
-        android:text="PodBB"
-        android:textColor="@color/accent_green"
-        android:textSize="20sp"
-        android:typeface="monospace" />
-
-    <View android:layout_width="match_parent" android:layout_height="1dp" android:background="@color/divider" />
-
-    <ListView
-        android:id="@+id/listSubscriptions"
-        android:layout_width="match_parent"
-        android:layout_height="0dp"
-        android:layout_weight="1"
-        android:background="@color/bg_primary"
-        android:divider="@color/divider"
-        android:dividerHeight="1dp" />
-
-    <TextView
-        android:id="@+id/tvEmpty"
-        android:layout_width="match_parent"
-        android:layout_height="0dp"
-        android:layout_weight="1"
-        android:gravity="center"
-        android:padding="32dp"
-        android:text="@string/no_subscriptions"
-        android:textColor="@color/text_muted"
-        android:textSize="13sp"
-        android:typeface="monospace"
-        android:visibility="gone" />
-
-    <View android:layout_width="match_parent" android:layout_height="1dp" android:background="@color/divider" />
-
+    <!-- Header Bar (Cosmos/Orbit style) -->
     <LinearLayout
         android:layout_width="match_parent"
         android:layout_height="48dp"
         android:orientation="horizontal"
-        android:background="@color/bg_secondary">
+        android:gravity="center_vertical"
+        android:background="@color/header_bg"
+        android:paddingLeft="14dp"
+        android:paddingRight="10dp">
 
         <TextView
-            android:id="@+id/navSubscriptions"
             android:layout_width="0dp"
-            android:layout_height="match_parent"
+            android:layout_height="wrap_content"
             android:layout_weight="1"
-            android:gravity="center"
-            android:text="[subs]"
-            android:textColor="@color/accent_green"
-            android:textSize="12sp"
-            android:typeface="monospace" />
+            android:text="PodBB"
+            android:textColor="@color/text_primary"
+            android:textSize="17sp"
+            android:textStyle="bold" />
 
-        <View android:layout_width="1dp" android:layout_height="match_parent" android:background="@color/divider" />
-
-        <TextView
-            android:id="@+id/navSearch"
-            android:layout_width="0dp"
-            android:layout_height="match_parent"
-            android:layout_weight="1"
-            android:gravity="center"
+        <Button
+            android:id="@+id/btnNavSearch"
+            android:layout_width="wrap_content"
+            android:layout_height="32dp"
             android:text="[search]"
-            android:textColor="@color/text_muted"
+            android:textColor="@color/accent_blue"
+            android:background="@drawable/btn_action"
             android:textSize="12sp"
-            android:typeface="monospace" />
+            android:paddingLeft="10dp"
+            android:paddingRight="10dp"
+            android:layout_marginRight="6dp" />
 
-        <View android:layout_width="1dp" android:layout_height="match_parent" android:background="@color/divider" />
+        <Button
+            android:id="@+id/btnNavDownloads"
+            android:layout_width="wrap_content"
+            android:layout_height="32dp"
+            android:text="[downloads]"
+            android:textColor="@color/text_primary"
+            android:background="@drawable/btn_action"
+            android:textSize="12sp"
+            android:paddingLeft="10dp"
+            android:paddingRight="10dp" />
+    </LinearLayout>
+
+    <View
+        android:layout_width="match_parent"
+        android:layout_height="1dp"
+        android:background="@color/divider" />
+
+    <!-- Subscriptions Header / Stats -->
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:orientation="horizontal"
+        android:paddingLeft="14dp"
+        android:paddingRight="14dp"
+        android:paddingTop="10dp"
+        android:paddingBottom="8dp"
+        android:gravity="center_vertical">
 
         <TextView
-            android:id="@+id/navDownloads"
+            android:id="@+id/tvSubsHeader"
             android:layout_width="0dp"
-            android:layout_height="match_parent"
+            android:layout_height="wrap_content"
             android:layout_weight="1"
-            android:gravity="center"
-            android:text="[dl]"
-            android:textColor="@color/text_muted"
-            android:textSize="12sp"
-            android:typeface="monospace" />
+            android:text="MY SUBSCRIPTIONS"
+            android:textColor="@color/text_secondary"
+            android:textSize="11sp"
+            android:textStyle="bold" />
+
+        <TextView
+            android:id="@+id/tvSubsCount"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="0 podcasts"
+            android:textColor="@color/text_secondary"
+            android:textSize="11sp" />
     </LinearLayout>
+
+    <FrameLayout
+        android:layout_width="match_parent"
+        android:layout_height="0dp"
+        android:layout_weight="1">
+
+        <ListView
+            android:id="@+id/listSubscriptions"
+            android:layout_width="match_parent"
+            android:layout_height="match_parent"
+            android:divider="@color/divider"
+            android:dividerHeight="1dp"
+            android:paddingLeft="10dp"
+            android:paddingRight="10dp" />
+
+        <LinearLayout
+            android:id="@+id/layoutEmpty"
+            android:layout_width="match_parent"
+            android:layout_height="match_parent"
+            android:orientation="vertical"
+            android:gravity="center"
+            android:padding="32dp"
+            android:visibility="gone">
+
+            <TextView
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="No subscriptions yet"
+                android:textColor="@color/text_primary"
+                android:textSize="15sp"
+                android:textStyle="bold"
+                android:layout_marginBottom="6dp" />
+
+            <TextView
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="Search to discover and subscribe to your favorite podcasts"
+                android:textColor="@color/text_secondary"
+                android:textSize="12sp"
+                android:gravity="center"
+                android:layout_marginBottom="16dp" />
+
+            <Button
+                android:id="@+id/btnEmptySearch"
+                android:layout_width="wrap_content"
+                android:layout_height="36dp"
+                android:text="[ + Discover Podcasts ]"
+                android:textColor="@color/text_primary"
+                android:background="@drawable/btn_accent"
+                android:textSize="13sp"
+                android:paddingLeft="16dp"
+                android:paddingRight="16dp" />
+        </LinearLayout>
+    </FrameLayout>
+
+    <!-- Bottom Mini-Player Bar (Orbit/Cosmos card style) -->
+    <LinearLayout
+        android:id="@+id/miniPlayerBar"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:orientation="vertical"
+        android:visibility="gone">
+
+        <View
+            android:layout_width="match_parent"
+            android:layout_height="1dp"
+            android:background="@color/divider" />
+
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="52dp"
+            android:orientation="horizontal"
+            android:gravity="center_vertical"
+            android:background="@color/surface"
+            android:paddingLeft="14dp"
+            android:paddingRight="10dp">
+
+            <LinearLayout
+                android:id="@+id/miniPlayerInfo"
+                android:layout_width="0dp"
+                android:layout_height="wrap_content"
+                android:layout_weight="1"
+                android:orientation="vertical">
+
+                <TextView
+                    android:id="@+id/tvMiniTitle"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:text=""
+                    android:textColor="@color/text_primary"
+                    android:textSize="13sp"
+                    android:textStyle="bold"
+                    android:singleLine="true"
+                    android:ellipsize="end" />
+
+                <TextView
+                    android:id="@+id/tvMiniPodcast"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:text=""
+                    android:textColor="@color/text_secondary"
+                    android:textSize="11sp"
+                    android:singleLine="true" />
+            </LinearLayout>
+
+            <Button
+                android:id="@+id/btnMiniPlayPause"
+                android:layout_width="wrap_content"
+                android:layout_height="34dp"
+                android:text="[play]"
+                android:textColor="@color/accent_blue"
+                android:background="@drawable/btn_action"
+                android:textSize="12sp"
+                android:paddingLeft="12dp"
+                android:paddingRight="12dp" />
+        </LinearLayout>
+    </LinearLayout>
+
 </LinearLayout>

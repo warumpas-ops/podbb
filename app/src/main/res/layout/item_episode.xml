@@ -3,17 +3,22 @@
     android:layout_width="match_parent"
     android:layout_height="wrap_content"
     android:orientation="vertical"
-    android:padding="12dp"
-    android:background="@drawable/row_selector">
+    android:paddingLeft="14dp"
+    android:paddingRight="14dp"
+    android:paddingTop="12dp"
+    android:paddingBottom="12dp"
+    android:background="@drawable/card_selector"
+    android:layout_marginTop="4dp"
+    android:layout_marginBottom="4dp">
 
     <TextView
         android:id="@+id/tvTitle"
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
-        android:text=""
+        android:text="Episode Title"
         android:textColor="@color/text_primary"
-        android:textSize="13sp"
-        android:typeface="monospace"
+        android:textSize="14sp"
+        android:textStyle="bold"
         android:ellipsize="end"
         android:maxLines="2" />
 
@@ -21,25 +26,25 @@
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
         android:orientation="horizontal"
-        android:paddingTop="4dp">
+        android:gravity="center_vertical"
+        android:paddingTop="6dp">
 
         <TextView
             android:id="@+id/tvDuration"
             android:layout_width="0dp"
             android:layout_height="wrap_content"
             android:layout_weight="1"
-            android:text=""
-            android:textColor="@color/text_muted"
-            android:textSize="11sp"
-            android:typeface="monospace" />
+            android:text="45:00"
+            android:textColor="@color/text_secondary"
+            android:textSize="11sp" />
 
         <TextView
             android:id="@+id/tvStatus"
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
-            android:text=""
-            android:textColor="@color/text_muted"
-            android:textSize="11sp"
-            android:typeface="monospace" />
+            android:text="[stream]"
+            android:textColor="@color/accent_blue"
+            android:textSize="11sp" />
     </LinearLayout>
+
 </LinearLayout>

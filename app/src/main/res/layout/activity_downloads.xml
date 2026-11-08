@@ -3,56 +3,101 @@
     android:layout_width="match_parent"
     android:layout_height="match_parent"
     android:orientation="vertical"
-    android:background="@color/bg_primary">
+    android:background="@color/bg">
 
+    <!-- Top Bar -->
     <LinearLayout
         android:layout_width="match_parent"
-        android:layout_height="wrap_content"
+        android:layout_height="48dp"
         android:orientation="horizontal"
-        android:padding="8dp">
+        android:gravity="center_vertical"
+        android:background="@color/header_bg"
+        android:paddingLeft="10dp"
+        android:paddingRight="12dp">
 
-        <TextView
-            android:id="@+id/tvBack"
+        <Button
+            android:id="@+id/btnBack"
             android:layout_width="wrap_content"
-            android:layout_height="wrap_content"
-            android:padding="8dp"
-            android:text="[back]"
-            android:textColor="@color/text_muted"
-            android:textSize="13sp"
-            android:typeface="monospace" />
+            android:layout_height="32dp"
+            android:text="← Back"
+            android:textColor="@color/text_primary"
+            android:background="@drawable/btn_action"
+            android:textSize="12sp"
+            android:paddingLeft="10dp"
+            android:paddingRight="10dp" />
 
         <TextView
             android:layout_width="0dp"
             android:layout_height="wrap_content"
             android:layout_weight="1"
-            android:padding="8dp"
-            android:text="downloads"
+            android:gravity="center"
+            android:text="Downloaded Episodes"
             android:textColor="@color/text_primary"
-            android:textSize="14sp"
-            android:typeface="monospace" />
+            android:textSize="15sp"
+            android:textStyle="bold" />
+
+        <View
+            android:layout_width="60dp"
+            android:layout_height="1dp" />
     </LinearLayout>
 
-    <View android:layout_width="match_parent" android:layout_height="1dp" android:background="@color/divider" />
-
-    <ListView
-        android:id="@+id/listDownloads"
+    <View
         android:layout_width="match_parent"
-        android:layout_height="0dp"
-        android:layout_weight="1"
-        android:background="@color/bg_primary"
-        android:divider="@color/divider"
-        android:dividerHeight="1dp" />
+        android:layout_height="1dp"
+        android:background="@color/divider" />
 
     <TextView
-        android:id="@+id/tvEmpty"
+        android:id="@+id/tvStorageInfo"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:paddingLeft="14dp"
+        android:paddingRight="14dp"
+        android:paddingTop="8dp"
+        android:paddingBottom="8dp"
+        android:text="Saved in device storage (/sdcard/PodBB/)"
+        android:textColor="@color/text_secondary"
+        android:textSize="11sp" />
+
+    <FrameLayout
         android:layout_width="match_parent"
         android:layout_height="0dp"
-        android:layout_weight="1"
-        android:gravity="center"
-        android:padding="32dp"
-        android:text="@string/no_downloads"
-        android:textColor="@color/text_muted"
-        android:textSize="13sp"
-        android:typeface="monospace"
-        android:visibility="gone" />
+        android:layout_weight="1">
+
+        <ListView
+            android:id="@+id/listDownloads"
+            android:layout_width="match_parent"
+            android:layout_height="match_parent"
+            android:divider="@color/divider"
+            android:dividerHeight="1dp"
+            android:paddingLeft="10dp"
+            android:paddingRight="10dp" />
+
+        <LinearLayout
+            android:id="@+id/layoutEmpty"
+            android:layout_width="match_parent"
+            android:layout_height="match_parent"
+            android:orientation="vertical"
+            android:gravity="center"
+            android:padding="32dp"
+            android:visibility="gone">
+
+            <TextView
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="No offline downloads"
+                android:textColor="@color/text_primary"
+                android:textSize="15sp"
+                android:textStyle="bold"
+                android:layout_marginBottom="4dp" />
+
+            <TextView
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="Download podcast episodes to listen anywhere without internet"
+                android:textColor="@color/text_secondary"
+                android:textSize="12sp"
+                android:gravity="center" />
+        </LinearLayout>
+    </FrameLayout>
+
 </LinearLayout>

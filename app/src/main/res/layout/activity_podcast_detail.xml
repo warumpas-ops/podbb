@@ -3,83 +3,158 @@
     android:layout_width="match_parent"
     android:layout_height="match_parent"
     android:orientation="vertical"
-    android:background="@color/bg_primary">
+    android:background="@color/bg">
 
+    <!-- Header Bar -->
     <LinearLayout
         android:layout_width="match_parent"
-        android:layout_height="wrap_content"
+        android:layout_height="48dp"
         android:orientation="horizontal"
-        android:padding="8dp">
+        android:gravity="center_vertical"
+        android:background="@color/header_bg"
+        android:paddingLeft="10dp"
+        android:paddingRight="12dp">
 
-        <TextView
-            android:id="@+id/tvBack"
+        <Button
+            android:id="@+id/btnBack"
             android:layout_width="wrap_content"
-            android:layout_height="wrap_content"
-            android:padding="8dp"
-            android:text="[back]"
-            android:textColor="@color/text_muted"
-            android:textSize="13sp"
-            android:typeface="monospace" />
+            android:layout_height="32dp"
+            android:text="← Back"
+            android:textColor="@color/text_primary"
+            android:background="@drawable/btn_action"
+            android:textSize="12sp"
+            android:paddingLeft="10dp"
+            android:paddingRight="10dp" />
 
         <TextView
-            android:id="@+id/tvPodcastTitle"
+            android:id="@+id/tvHeaderTitle"
             android:layout_width="0dp"
             android:layout_height="wrap_content"
             android:layout_weight="1"
-            android:padding="8dp"
-            android:text=""
+            android:paddingLeft="10dp"
+            android:text="Podcast"
             android:textColor="@color/text_primary"
             android:textSize="14sp"
-            android:typeface="monospace"
-            android:ellipsize="end"
-            android:maxLines="1" />
+            android:textStyle="bold"
+            android:singleLine="true"
+            android:ellipsize="end" />
+
+        <Button
+            android:id="@+id/btnSubscribe"
+            android:layout_width="wrap_content"
+            android:layout_height="32dp"
+            android:text="+ Subscribe"
+            android:textColor="@color/text_primary"
+            android:background="@drawable/btn_accent"
+            android:textSize="12sp"
+            android:paddingLeft="12dp"
+            android:paddingRight="12dp" />
     </LinearLayout>
 
+    <View
+        android:layout_width="match_parent"
+        android:layout_height="1dp"
+        android:background="@color/divider" />
+
+    <!-- Podcast Hero Banner -->
     <LinearLayout
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
         android:orientation="horizontal"
-        android:padding="12dp">
+        android:padding="14dp"
+        android:background="@color/surface"
+        android:gravity="center_vertical">
 
-        <TextView
-            android:id="@+id/tvAuthor"
+        <ImageView
+            android:id="@+id/imgPodcastCover"
+            android:layout_width="64dp"
+            android:layout_height="64dp"
+            android:src="@drawable/ic_launcher"
+            android:scaleType="centerCrop"
+            android:background="#202534" />
+
+        <LinearLayout
             android:layout_width="0dp"
             android:layout_height="wrap_content"
             android:layout_weight="1"
-            android:text=""
-            android:textColor="@color/text_muted"
-            android:textSize="12sp"
-            android:typeface="monospace" />
+            android:orientation="vertical"
+            android:paddingLeft="12dp">
 
-        <TextView
-            android:id="@+id/btnSubscribe"
-            android:layout_width="wrap_content"
-            android:layout_height="wrap_content"
-            android:background="@drawable/btn_accent"
-            android:text="[subscribe]"
-            android:textColor="@color/accent_green"
-            android:textSize="12sp"
-            android:typeface="monospace" />
+            <TextView
+                android:id="@+id/tvPodcastTitle"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:text="Podcast Title"
+                android:textColor="@color/text_primary"
+                android:textSize="15sp"
+                android:textStyle="bold"
+                android:maxLines="2"
+                android:ellipsize="end" />
+
+            <TextView
+                android:id="@+id/tvAuthor"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="2dp"
+                android:text="Author Name"
+                android:textColor="@color/text_secondary"
+                android:textSize="12sp"
+                android:singleLine="true" />
+
+            <TextView
+                android:id="@+id/tvGenrePill"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="4dp"
+                android:text="Podcast"
+                android:textColor="@color/accent_blue"
+                android:background="@drawable/pill_badge"
+                android:textSize="10sp" />
+        </LinearLayout>
     </LinearLayout>
 
-    <View android:layout_width="match_parent" android:layout_height="1dp" android:background="@color/divider" />
+    <View
+        android:layout_width="match_parent"
+        android:layout_height="1dp"
+        android:background="@color/divider" />
 
-    <TextView
-        android:id="@+id/tvEpisodesLabel"
+    <!-- Episodes Header -->
+    <LinearLayout
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
-        android:padding="12dp"
-        android:text="episodes"
-        android:textColor="@color/text_muted"
-        android:textSize="11sp"
-        android:typeface="monospace" />
+        android:orientation="horizontal"
+        android:paddingLeft="14dp"
+        android:paddingRight="14dp"
+        android:paddingTop="10dp"
+        android:paddingBottom="6dp">
+
+        <TextView
+            android:id="@+id/tvEpisodesHeader"
+            android:layout_width="0dp"
+            android:layout_height="wrap_content"
+            android:layout_weight="1"
+            android:text="EPISODES"
+            android:textColor="@color/text_secondary"
+            android:textSize="11sp"
+            android:textStyle="bold" />
+
+        <TextView
+            android:id="@+id/tvEpisodesStatus"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="Loading feed..."
+            android:textColor="@color/text_secondary"
+            android:textSize="11sp" />
+    </LinearLayout>
 
     <ListView
         android:id="@+id/listEpisodes"
         android:layout_width="match_parent"
         android:layout_height="0dp"
         android:layout_weight="1"
-        android:background="@color/bg_primary"
         android:divider="@color/divider"
-        android:dividerHeight="1dp" />
+        android:dividerHeight="1dp"
+        android:paddingLeft="10dp"
+        android:paddingRight="10dp" />
+
 </LinearLayout>
