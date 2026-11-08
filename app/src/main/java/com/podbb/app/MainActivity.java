@@ -13,6 +13,7 @@ import android.view.ViewGroup;
 import android.widget.BaseAdapter;
 import android.widget.Button;
 import android.widget.EditText;
+import android.widget.GridView;
 import android.widget.ImageView;
 import android.widget.LinearLayout;
 import android.widget.ListView;
@@ -21,18 +22,25 @@ import java.util.ArrayList;
 import java.util.List;
 
 public class MainActivity extends Activity {
+
     private DatabaseHelper db;
-    private final List<Podcast> displayedList = new ArrayList<>();
-    private final List<Podcast> subscribedList = new ArrayList<>();
-    private PodcastListAdapter adapter;
     private ImageLoader imageLoader;
+
+    // Subscription grid
+    private final List<Podcast> subscribedList = new ArrayList<>();
+    private GridView gridSubscriptions;
+    private GridCoverAdapter gridAdapter;
+
+    // Search list
+    private final List<Podcast> searchResults = new ArrayList<>();
+    private ListView listPodcasts;
+    private SearchListAdapter searchAdapter;
 
     private TextView tvSectionHeader;
     private EditText etSearch;
-    private ListView listPodcasts;
     private TextView tvEmpty;
 
-    // Mini-player bar
+    // Mini-player
     private LinearLayout miniPlayerBar;
     private TextView tvMiniTitle;
     private TextView tvMiniPodcast;
@@ -49,7 +57,6 @@ public class MainActivity extends Activity {
             isBound = true;
             updateMiniPlayer();
         }
-
         @Override
         public void onServiceDisconnected(ComponentName name) {
             isBound = false;
@@ -64,112 +71,140 @@ public class MainActivity extends Activity {
         db = new DatabaseHelper(this);
         imageLoader = ImageLoader.getInstance(this);
 
-        tvSectionHeader = (TextView) findViewById(R.id.tvSectionHeader);
-        etSearch = (EditText) findViewById(R.id.etSearch);
-        listPodcasts = (ListView) findViewById(R.id.listPodcasts);
-        tvEmpty = (TextView) findViewById(R.id.tvEmpty);
+        tvSectionHeader  = (TextView)  findViewById(R.id.tvSectionHeader);
+        etSearch         = (EditText)  findViewById(R.id.etSearch);
+        tvEmpty          = (TextView)  findViewById(R.id.tvEmpty);
+        gridSubscriptions = (GridView) findViewById(R.id.gridSubscriptions);
+        listPodcasts     = (ListView)  findViewById(R.id.listPodcasts);
 
+        miniPlayerBar    = (LinearLayout) findViewById(R.id.miniPlayerBar);
+        tvMiniTitle      = (TextView)  findViewById(R.id.tvMiniTitle);
+        tvMiniPodcast    = (TextView)  findViewById(R.id.tvMiniPodcast);
+        btnMiniPlayPause = (Button)    findViewById(R.id.btnMiniPlayPause);
+
+        // Grid adapter — covers only
+        gridAdapter = new GridCoverAdapter();
+        gridSubscriptions.setAdapter(gridAdapter);
+
+        // Search list adapter — full info rows
+        searchAdapter = new SearchListAdapter();
+        listPodcasts.setAdapter(searchAdapter);
+
+        // Header downloads button
         Button btnHeaderDownloads = (Button) findViewById(R.id.btnHeaderDownloads);
         Button btnBottomDownloads = (Button) findViewById(R.id.btnBottomDownloads);
-        Button btnBottomPlayer = (Button) findViewById(R.id.btnBottomPlayer);
+        Button btnBottomPlayer    = (Button) findViewById(R.id.btnBottomPlayer);
 
-        miniPlayerBar = (LinearLayout) findViewById(R.id.miniPlayerBar);
-        tvMiniTitle = (TextView) findViewById(R.id.tvMiniTitle);
-        tvMiniPodcast = (TextView) findViewById(R.id.tvMiniPodcast);
-        btnMiniPlayPause = (Button) findViewById(R.id.btnMiniPlayPause);
-
-        adapter = new PodcastListAdapter();
-        listPodcasts.setAdapter(adapter);
-
-        View.OnClickListener openDownloads = v -> startActivity(new Intent(MainActivity.this, DownloadsActivity.class));
+        View.OnClickListener openDownloads = new View.OnClickListener() {
+            @Override
+            public void onClick(View v) {
+                startActivity(new Intent(MainActivity.this, DownloadsActivity.class));
+            }
+        };
         btnHeaderDownloads.setOnClickListener(openDownloads);
         btnBottomDownloads.setOnClickListener(openDownloads);
 
-        btnBottomPlayer.setOnClickListener(v -> {
-            Intent intent = new Intent(MainActivity.this, PlayerActivity.class);
-            if (isBound && playerService != null && playerService.getCurrentEpisode() != null) {
-                Episode ep = playerService.getCurrentEpisode();
-                intent.putExtra("episode_id", ep.id);
-                intent.putExtra("episode_title", ep.title);
-                intent.putExtra("episode_audio_url", ep.audioUrl);
-                intent.putExtra("episode_file_path", ep.filePath != null ? ep.filePath : "");
-                intent.putExtra("episode_duration", ep.durationSeconds);
-                intent.putExtra("episode_position", ep.positionSeconds);
-                intent.putExtra("podcast_title", ep.podcastTitle != null ? ep.podcastTitle : "");
-            }
-            startActivity(intent);
-        });
-
-        findViewById(R.id.miniPlayerClickArea).setOnClickListener(v -> btnBottomPlayer.performClick());
-        btnMiniPlayPause.setOnClickListener(v -> {
-            if (isBound && playerService != null) {
-                playerService.togglePlayPause();
-                updateMiniPlayer();
+        btnBottomPlayer.setOnClickListener(new View.OnClickListener() {
+            @Override
+            public void onClick(View v) {
+                Intent intent = new Intent(MainActivity.this, PlayerActivity.class);
+                if (isBound && playerService != null && playerService.getCurrentEpisode() != null) {
+                    Episode ep = playerService.getCurrentEpisode();
+                    intent.putExtra("episode_id", ep.id);
+                    intent.putExtra("episode_title", ep.title);
+                    intent.putExtra("episode_audio_url", ep.audioUrl);
+                    intent.putExtra("episode_file_path", ep.filePath != null ? ep.filePath : "");
+                    intent.putExtra("episode_duration", ep.durationSeconds);
+                    intent.putExtra("episode_position", ep.positionSeconds);
+                    intent.putExtra("podcast_title", ep.podcastTitle != null ? ep.podcastTitle : "");
+                }
+                startActivity(intent);
             }
         });
 
+        findViewById(R.id.miniPlayerClickArea).setOnClickListener(new View.OnClickListener() {
+            @Override
+            public void onClick(View v) {
+                findViewById(R.id.btnBottomPlayer).performClick();
+            }
+        });
+
+        btnMiniPlayPause.setOnClickListener(new View.OnClickListener() {
+            @Override
+            public void onClick(View v) {
+                if (isBound && playerService != null) {
+                    playerService.togglePlayPause();
+                    updateMiniPlayer();
+                }
+            }
+        });
+
+        // Tap on a cover in the grid
+        gridSubscriptions.setOnItemClickListener(
+            (parent, view, position, id) -> openPodcast(subscribedList.get(position))
+        );
+
+        // Tap on a search result
+        listPodcasts.setOnItemClickListener(
+            (parent, view, position, id) -> openPodcast(searchResults.get(position))
+        );
+
+        // Search input
         etSearch.setOnEditorActionListener((v, actionId, event) -> {
             String q = etSearch.getText().toString().trim();
-            if (!q.isEmpty()) {
-                performSearch(q);
-                return true;
-            }
+            if (!q.isEmpty()) { performSearch(q); return true; }
             return false;
         });
 
         etSearch.addTextChangedListener(new TextWatcher() {
-            @Override
-            public void beforeTextChanged(CharSequence s, int start, int count, int after) {}
+            @Override public void beforeTextChanged(CharSequence s, int i, int c, int a) {}
+            @Override public void afterTextChanged(Editable s) {}
             @Override
             public void onTextChanged(CharSequence s, int start, int before, int count) {
-                if (s.length() == 0 && isSearching) {
-                    showSubscriptions();
-                }
+                if (s.length() == 0 && isSearching) showSubscriptions();
             }
-            @Override
-            public void afterTextChanged(Editable s) {}
         });
 
-        listPodcasts.setOnItemClickListener((parent, view, position, id) -> {
-            Podcast p = displayedList.get(position);
-            Intent intent = new Intent(MainActivity.this, PodcastDetailActivity.class);
-            intent.putExtra("podcast_id", p.id);
-            intent.putExtra("podcast_title", p.title);
-            intent.putExtra("podcast_author", p.author);
-            intent.putExtra("feed_url", p.feedUrl);
-            intent.putExtra("itunes_id", p.itunesId);
-            intent.putExtra("image_url", p.imageUrl);
-            intent.putExtra("description", p.description);
-            startActivity(intent);
-        });
+        bindService(new Intent(this, PlayerService.class), serviceConn, BIND_AUTO_CREATE);
+    }
 
-        Intent svcIntent = new Intent(this, PlayerService.class);
-        bindService(svcIntent, serviceConn, BIND_AUTO_CREATE);
+    private void openPodcast(Podcast p) {
+        Intent intent = new Intent(MainActivity.this, PodcastDetailActivity.class);
+        intent.putExtra("podcast_id",     p.id);
+        intent.putExtra("podcast_title",  p.title);
+        intent.putExtra("podcast_author", p.author);
+        intent.putExtra("feed_url",       p.feedUrl);
+        intent.putExtra("itunes_id",      p.itunesId);
+        intent.putExtra("image_url",      p.imageUrl);
+        intent.putExtra("description",    p.description);
+        startActivity(intent);
     }
 
     @Override
     protected void onResume() {
         super.onResume();
-        if (!isSearching) {
-            showSubscriptions();
-        }
+        if (!isSearching) showSubscriptions();
         updateMiniPlayer();
     }
 
     private void showSubscriptions() {
         isSearching = false;
-        tvSectionHeader.setText("MY SUBSCRIPTIONS");
+
         subscribedList.clear();
         subscribedList.addAll(db.getAllSubscribed());
+        gridAdapter.notifyDataSetChanged();
 
-        displayedList.clear();
-        displayedList.addAll(subscribedList);
-        adapter.notifyDataSetChanged();
+        // Show grid, hide list
+        gridSubscriptions.setVisibility(View.VISIBLE);
+        listPodcasts.setVisibility(View.GONE);
 
-        if (displayedList.isEmpty()) {
+        if (subscribedList.isEmpty()) {
+            tvSectionHeader.setText("MY SUBSCRIPTIONS");
             tvEmpty.setVisibility(View.VISIBLE);
             tvEmpty.setText("[ no podcasts subscribed ]\n\ntype keywords above to search\nor paste an RSS feed url");
+            gridSubscriptions.setVisibility(View.GONE);
         } else {
+            tvSectionHeader.setText("MY SUBSCRIPTIONS  (" + subscribedList.size() + ")");
             tvEmpty.setVisibility(View.GONE);
         }
     }
@@ -177,8 +212,13 @@ public class MainActivity extends Activity {
     private void performSearch(final String query) {
         isSearching = true;
         tvSectionHeader.setText("SEARCHING \"" + query + "\"...");
-        displayedList.clear();
-        adapter.notifyDataSetChanged();
+
+        // Show list, hide grid
+        gridSubscriptions.setVisibility(View.GONE);
+        listPodcasts.setVisibility(View.VISIBLE);
+
+        searchResults.clear();
+        searchAdapter.notifyDataSetChanged();
         tvEmpty.setVisibility(View.VISIBLE);
         tvEmpty.setText("[ searching podcast directory... ]");
 
@@ -186,16 +226,15 @@ public class MainActivity extends Activity {
             try {
                 final List<Podcast> found = PodcastSearchEngine.search(query);
                 runOnUiThread(() -> {
-                    displayedList.clear();
-                    displayedList.addAll(found);
-                    adapter.notifyDataSetChanged();
-
+                    searchResults.clear();
+                    searchResults.addAll(found);
+                    searchAdapter.notifyDataSetChanged();
                     if (found.isEmpty()) {
                         tvSectionHeader.setText("NO RESULTS FOR \"" + query + "\"");
                         tvEmpty.setVisibility(View.VISIBLE);
                         tvEmpty.setText("[ no podcasts found ]\n\ntry another keyword or paste direct RSS url");
                     } else {
-                        tvSectionHeader.setText("SEARCH RESULTS (" + found.size() + ")");
+                        tvSectionHeader.setText("RESULTS (" + found.size() + ")");
                         tvEmpty.setVisibility(View.GONE);
                     }
                 });
@@ -203,7 +242,7 @@ public class MainActivity extends Activity {
                 runOnUiThread(() -> {
                     tvSectionHeader.setText("SEARCH FAILED");
                     tvEmpty.setVisibility(View.VISIBLE);
-                    tvEmpty.setText("[ search error: " + (e.getMessage() != null ? e.getMessage() : "offline") + " ]");
+                    tvEmpty.setText("[ " + (e.getMessage() != null ? e.getMessage() : "offline") + " ]");
                 });
             }
         }).start();
@@ -221,46 +260,72 @@ public class MainActivity extends Activity {
         }
     }
 
-    private class PodcastListAdapter extends BaseAdapter {
+    // ── Grid adapter: square covers only ──────────────────────────────────
+
+    private class GridCoverAdapter extends BaseAdapter {
+        @Override public int getCount() { return subscribedList.size(); }
+        @Override public Object getItem(int pos) { return subscribedList.get(pos); }
+        @Override public long getItemId(int pos) { return pos; }
+
         @Override
-        public int getCount() { return displayedList.size(); }
-        @Override
-        public Object getItem(int position) { return displayedList.get(position); }
-        @Override
-        public long getItemId(int position) { return position; }
+        public View getView(int position, View convertView, ViewGroup parent) {
+            ImageView img;
+            if (convertView == null) {
+                convertView = getLayoutInflater().inflate(R.layout.item_grid_cover, parent, false);
+                img = (ImageView) convertView.findViewById(R.id.imgGridCover);
+                convertView.setTag(img);
+            } else {
+                img = (ImageView) convertView.getTag();
+            }
+
+            // Force square: width = one-third of screen
+            int screenWidth = getResources().getDisplayMetrics().widthPixels;
+            int cellSize = (screenWidth - 12) / 3; // 3 cols, 3dp gaps
+            ViewGroup.LayoutParams lp = convertView.getLayoutParams();
+            lp.height = cellSize;
+            convertView.setLayoutParams(lp);
+
+            Podcast p = subscribedList.get(position);
+            imageLoader.displayImage(p.imageUrl, img, R.drawable.ic_launcher);
+
+            return convertView;
+        }
+    }
+
+    // ── Search list adapter: full info rows ───────────────────────────────
+
+    private class SearchListAdapter extends BaseAdapter {
+        @Override public int getCount() { return searchResults.size(); }
+        @Override public Object getItem(int pos) { return searchResults.get(pos); }
+        @Override public long getItemId(int pos) { return pos; }
 
         @Override
         public View getView(int position, View convertView, ViewGroup parent) {
             if (convertView == null) {
-                convertView = getLayoutInflater().inflate(R.layout.item_podcast, parent, false);
+                convertView = getLayoutInflater().inflate(R.layout.item_search_result, parent, false);
             }
-            Podcast p = displayedList.get(position);
+            Podcast p = searchResults.get(position);
             ImageView imgCoverThumb = (ImageView) convertView.findViewById(R.id.imgCoverThumb);
-            TextView tvTypeTag = (TextView) convertView.findViewById(R.id.tvTypeTag);
-            TextView tvTitle = (TextView) convertView.findViewById(R.id.tvTitle);
-            TextView tvPreview = (TextView) convertView.findViewById(R.id.tvPreview);
+            TextView tvTypeTag  = (TextView) convertView.findViewById(R.id.tvTypeTag);
+            TextView tvTitle    = (TextView) convertView.findViewById(R.id.tvTitle);
+            TextView tvPreview  = (TextView) convertView.findViewById(R.id.tvPreview);
             TextView tvCategory = (TextView) convertView.findViewById(R.id.tvCategory);
 
-            tvTypeTag.setText(p.isSubscribed ? "[saved]" : "[pod]");
+            tvTypeTag.setText("[pod]");
             tvTitle.setText(p.title);
-            
-            String creatorOrDesc = p.author != null && !p.author.isEmpty() ? p.author : (p.description != null ? p.description : "Podcast");
-            tvPreview.setText(creatorOrDesc.replaceAll("<[^>]*>", "").trim());
-            tvCategory.setText(p.isSubscribed ? "✓ Subscribed" : "[tap to view]");
+            String sub = p.author != null && !p.author.isEmpty() ? p.author
+                       : (p.description != null ? p.description.replaceAll("<[^>]*>", "").trim() : "Podcast");
+            tvPreview.setText(sub);
+            tvCategory.setText("[tap to view]");
 
-            // Load cover picture asynchronously
             imageLoader.displayImage(p.imageUrl, imgCoverThumb, R.drawable.ic_launcher);
-
             return convertView;
         }
     }
 
     @Override
     protected void onDestroy() {
-        if (isBound) {
-            unbindService(serviceConn);
-            isBound = false;
-        }
+        if (isBound) { unbindService(serviceConn); isBound = false; }
         db.close();
         super.onDestroy();
     }

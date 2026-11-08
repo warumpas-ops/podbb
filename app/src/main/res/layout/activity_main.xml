@@ -6,7 +6,7 @@
     android:orientation="vertical"
     android:background="@color/bb_black">
 
-    <!-- Top Header Bar (NoteVault / Orbit style) -->
+    <!-- Top Header Bar -->
     <LinearLayout
         android:id="@+id/headerBar"
         android:layout_width="match_parent"
@@ -40,14 +40,12 @@
             android:paddingRight="6dp" />
     </LinearLayout>
 
-    <!-- Subtle divider line -->
     <View
-        android:id="@+id/headerDivider"
         android:layout_width="match_parent"
         android:layout_height="1dp"
         android:background="@color/bb_border" />
 
-    <!-- Search container (NoteVault style directly on main screen) -->
+    <!-- Search Bar -->
     <LinearLayout
         android:id="@+id/searchContainer"
         android:layout_width="match_parent"
@@ -91,12 +89,26 @@
         android:layout_height="0dp"
         android:layout_weight="1">
 
+        <!-- SUBSCRIPTIONS: Grid of covers only -->
+        <GridView
+            android:id="@+id/gridSubscriptions"
+            android:layout_width="match_parent"
+            android:layout_height="match_parent"
+            android:numColumns="3"
+            android:horizontalSpacing="3dp"
+            android:verticalSpacing="3dp"
+            android:padding="3dp"
+            android:stretchMode="columnWidth"
+            android:visibility="gone" />
+
+        <!-- SEARCH RESULTS: Full list with info -->
         <ListView
             android:id="@+id/listPodcasts"
             android:layout_width="match_parent"
             android:layout_height="match_parent"
             android:divider="@color/bb_border"
-            android:dividerHeight="1dp" />
+            android:dividerHeight="1dp"
+            android:visibility="gone" />
 
         <TextView
             android:id="@+id/tvEmpty"
@@ -109,7 +121,7 @@
             android:visibility="gone" />
     </FrameLayout>
 
-    <!-- Bottom Mini Player Bar (if active) -->
+    <!-- Mini Player Bar -->
     <LinearLayout
         android:id="@+id/miniPlayerBar"
         android:layout_width="match_parent"
@@ -171,14 +183,12 @@
         </LinearLayout>
     </LinearLayout>
 
-    <!-- Bottom divider -->
     <View
-        android:id="@+id/bottomDivider"
         android:layout_width="match_parent"
         android:layout_height="1dp"
         android:background="@color/bb_border" />
 
-    <!-- Minimalist Bottom Action Bar -->
+    <!-- Bottom Action Bar -->
     <LinearLayout
         android:id="@+id/bottomBar"
         android:layout_width="match_parent"

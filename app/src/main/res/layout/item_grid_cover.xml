@@ -1,0 +1,23 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Square podcast cover for grid view — no text, just the art -->
+<FrameLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:layout_width="match_parent"
+    android:layout_height="wrap_content"
+    android:background="@color/bb_card">
+
+    <!-- Square image: width = match_parent, height forced square via code -->
+    <ImageView
+        android:id="@+id/imgGridCover"
+        android:layout_width="match_parent"
+        android:layout_height="match_parent"
+        android:scaleType="centerCrop"
+        android:adjustViewBounds="true" />
+
+    <!-- Thin cyan bottom border to show it's tappable -->
+    <View
+        android:layout_width="match_parent"
+        android:layout_height="2dp"
+        android:layout_gravity="bottom"
+        android:background="@color/bb_border" />
+
+</FrameLayout>
