@@ -45,18 +45,26 @@ public class PodcastDetailActivity extends Activity {
         TextView tvHeaderTitle = (TextView) findViewById(R.id.tvHeaderTitle);
         tvHeaderTitle.setText(title != null ? title : "Podcast");
 
-        TextView tvPodcastTitle = (TextView) findViewById(R.id.tvPodcastTitle);
+        btnSubscribe = (Button) findViewById(R.id.btnSubscribe);
+        ListView listEpisodes = (ListView) findViewById(R.id.listEpisodes);
+
+        // Inflate scrollable hero banner header
+        View headerView = getLayoutInflater().inflate(R.layout.header_podcast_detail, listEpisodes, false);
+        TextView tvPodcastTitle = (TextView) headerView.findViewById(R.id.tvPodcastTitle);
         tvPodcastTitle.setText(title);
 
-        TextView tvAuthor = (TextView) findViewById(R.id.tvAuthor);
+        TextView tvAuthor = (TextView) headerView.findViewById(R.id.tvAuthor);
         tvAuthor.setText(author != null && !author.isEmpty() ? author : "Creator");
 
-        TextView tvGenrePill = (TextView) findViewById(R.id.tvGenrePill);
+        TextView tvGenrePill = (TextView) headerView.findViewById(R.id.tvGenrePill);
         tvGenrePill.setText(description != null && !description.isEmpty() ? description.replaceAll("<[^>]*>", "").trim() : "Podcast");
 
-        btnSubscribe = (Button) findViewById(R.id.btnSubscribe);
-        tvEpisodesStatus = (TextView) findViewById(R.id.tvEpisodesStatus);
-        imgPodcastCover = (ImageView) findViewById(R.id.imgPodcastCover);
+        tvEpisodesStatus = (TextView) headerView.findViewById(R.id.tvEpisodesStatus);
+        imgPodcastCover = (ImageView) headerView.findViewById(R.id.imgPodcastCover);
+
+        // Add the hero panel header to the ListView (non-selectable, scrolls away smoothly)
+        listEpisodes.addHeaderView(headerView, null, false);
+        FontHelper.apply(headerView, this);
 
         // Determine subscription state by checking if feed is in database
         Podcast existing = db.getPodcastByFeedUrl(feedUrl);
@@ -90,12 +98,13 @@ public class PodcastDetailActivity extends Activity {
             updateSubscribeButton();
         });
 
-        ListView listEpisodes = (ListView) findViewById(R.id.listEpisodes);
         adapter = new EpisodeAdapter();
         listEpisodes.setAdapter(adapter);
 
         listEpisodes.setOnItemClickListener((parent, view, position, id) -> {
-            Episode ep = episodes.get(position);
+            Object item = parent.getItemAtPosition(position);
+            if (!(item instanceof Episode)) return; // Ignore header clicks
+            Episode ep = (Episode) item;
             Intent intent = new Intent(PodcastDetailActivity.this, PlayerActivity.class);
             intent.putExtra("episode_id", ep.id);
             intent.putExtra("episode_title", ep.title);

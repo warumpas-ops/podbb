@@ -22,7 +22,7 @@
             android:layout_width="0dp"
             android:layout_height="wrap_content"
             android:layout_weight="1"
-            android:text="PodBB [podcasts]"
+            android:text="[podcasts]"
             android:textColor="@color/bb_text_white"
             android:textSize="17sp"
             android:textStyle="bold"
