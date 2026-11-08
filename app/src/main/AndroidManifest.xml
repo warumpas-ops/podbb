@@ -24,6 +24,7 @@
         <activity android:name=".PodcastDetailActivity" android:exported="false" />
         <activity android:name=".PlayerActivity" android:exported="false" />
         <activity android:name=".DownloadsActivity" android:exported="false" />
+        <activity android:name=".SettingsActivity" android:exported="false" />
 
         <service android:name=".PlayerService" android:exported="false" />
 

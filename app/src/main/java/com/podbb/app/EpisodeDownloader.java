@@ -1,7 +1,6 @@
 package com.podbb.app;
 
 import android.content.Context;
-import android.os.Environment;
 import java.io.File;
 
 public class EpisodeDownloader {
@@ -15,7 +14,7 @@ public class EpisodeDownloader {
         new Thread(new Runnable() {
             public void run() {
                 try {
-                    File dir = new File(Environment.getExternalStorageDirectory(), "PodBB");
+                    File dir = SettingsHelper.getDownloadDir(ctx);
                     if (!dir.exists()) dir.mkdirs();
                     String filename = "ep_" + episode.id + ".mp3";
                     File outFile = new File(dir, filename);

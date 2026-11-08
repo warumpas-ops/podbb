@@ -58,23 +58,18 @@ public class PodcastDetailActivity extends Activity {
         tvEpisodesStatus = (TextView) findViewById(R.id.tvEpisodesStatus);
         imgPodcastCover = (ImageView) findViewById(R.id.imgPodcastCover);
 
-        // Determine subscription state
-        if (podcastId != -1) {
-            podcast = new Podcast(title, author, description != null ? description : "", imageUrl != null ? imageUrl : "", feedUrl, itunesId);
-            podcast.id = podcastId;
+        // Determine subscription state by checking if feed is in database
+        Podcast existing = db.getPodcastByFeedUrl(feedUrl);
+        if (existing != null) {
+            podcast = existing;
             isSubscribed = true;
-        } else {
-            Podcast existing = db.getPodcastByItunesId(itunesId != null ? itunesId : String.valueOf(feedUrl.hashCode()));
-            if (existing != null) {
-                podcast = existing;
-                isSubscribed = true;
-                if (podcast.imageUrl != null && !podcast.imageUrl.isEmpty()) {
-                    imageUrl = podcast.imageUrl;
-                }
-            } else {
-                podcast = new Podcast(title, author, description != null ? description : "", imageUrl != null ? imageUrl : "", feedUrl, itunesId);
-                isSubscribed = false;
+            if (podcast.imageUrl != null && !podcast.imageUrl.isEmpty()) {
+                imageUrl = podcast.imageUrl;
             }
+        } else {
+            podcast = new Podcast(title, author, description != null ? description : "", imageUrl != null ? imageUrl : "", feedUrl, itunesId);
+            podcast.id = -1;
+            isSubscribed = false;
         }
 
         // Load cover art instantly from cache/disk

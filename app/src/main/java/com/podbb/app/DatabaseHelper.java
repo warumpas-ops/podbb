@@ -88,6 +88,26 @@ public class DatabaseHelper extends SQLiteOpenHelper {
         return p;
     }
 
+    public Podcast getPodcastByFeedUrl(String feedUrl) {
+        if (feedUrl == null || feedUrl.trim().isEmpty()) return null;
+        SQLiteDatabase db = getReadableDatabase();
+        Cursor c = db.query("podcasts", null, "feed_url=?", new String[]{feedUrl.trim()}, null, null, null);
+        Podcast p = null;
+        if (c.moveToFirst()) {
+            p = new Podcast();
+            p.id = c.getLong(c.getColumnIndex("id"));
+            p.title = c.getString(c.getColumnIndex("title"));
+            p.author = c.getString(c.getColumnIndex("author"));
+            p.description = c.getString(c.getColumnIndex("description"));
+            p.imageUrl = c.getString(c.getColumnIndex("image_url"));
+            p.feedUrl = c.getString(c.getColumnIndex("feed_url"));
+            p.itunesId = c.getString(c.getColumnIndex("itunes_id"));
+            p.isSubscribed = true;
+        }
+        c.close();
+        return p;
+    }
+
     public void upsertEpisodes(long podcastId, List<Episode> episodes) {
         SQLiteDatabase db = getWritableDatabase();
         for (Episode e : episodes) {

@@ -93,6 +93,7 @@ public class MainActivity extends Activity {
 
         // Header downloads button
         Button btnHeaderDownloads = (Button) findViewById(R.id.btnHeaderDownloads);
+        Button btnHeaderSettings  = (Button) findViewById(R.id.btnHeaderSettings);
         Button btnBottomDownloads = (Button) findViewById(R.id.btnBottomDownloads);
         Button btnBottomPlayer    = (Button) findViewById(R.id.btnBottomPlayer);
 
@@ -104,6 +105,15 @@ public class MainActivity extends Activity {
         };
         btnHeaderDownloads.setOnClickListener(openDownloads);
         btnBottomDownloads.setOnClickListener(openDownloads);
+
+        if (btnHeaderSettings != null) {
+            btnHeaderSettings.setOnClickListener(new View.OnClickListener() {
+                @Override
+                public void onClick(View v) {
+                    startActivity(new Intent(MainActivity.this, SettingsActivity.class));
+                }
+            });
+        }
 
         btnBottomPlayer.setOnClickListener(new View.OnClickListener() {
             @Override
@@ -140,14 +150,14 @@ public class MainActivity extends Activity {
             }
         });
 
-        // Tap on a cover in the grid
+        // Tap on a cover in the grid (subscribed)
         gridSubscriptions.setOnItemClickListener(
-            (parent, view, position, id) -> openPodcast(subscribedList.get(position))
+            (parent, view, position, id) -> openPodcast(subscribedList.get(position), true)
         );
 
-        // Tap on a search result
+        // Tap on a search result (not yet subscribed)
         listPodcasts.setOnItemClickListener(
-            (parent, view, position, id) -> openPodcast(searchResults.get(position))
+            (parent, view, position, id) -> openPodcast(searchResults.get(position), false)
         );
 
         // Search input
@@ -170,9 +180,10 @@ public class MainActivity extends Activity {
         FontHelper.apply(findViewById(R.id.rootView), this);
     }
 
-    private void openPodcast(Podcast p) {
+    private void openPodcast(Podcast p, boolean isSubscribed) {
         Intent intent = new Intent(MainActivity.this, PodcastDetailActivity.class);
-        intent.putExtra("podcast_id",     p.id);
+        intent.putExtra("podcast_id",     isSubscribed ? p.id : -1L);
+        intent.putExtra("is_subscribed",  isSubscribed);
         intent.putExtra("podcast_title",  p.title);
         intent.putExtra("podcast_author", p.author);
         intent.putExtra("feed_url",       p.feedUrl);

@@ -1,0 +1,249 @@
+<?xml version="1.0" encoding="utf-8"?>
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:id="@+id/rootView"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:orientation="vertical"
+    android:background="@color/bb_black">
+
+    <!-- Header Bar -->
+    <LinearLayout
+        android:id="@+id/headerBar"
+        android:layout_width="match_parent"
+        android:layout_height="48dp"
+        android:orientation="horizontal"
+        android:gravity="center_vertical"
+        android:paddingLeft="10dp"
+        android:paddingRight="12dp"
+        android:background="@color/header_bg">
+
+        <Button
+            android:id="@+id/btnBack"
+            android:layout_width="wrap_content"
+            android:layout_height="32dp"
+            android:text="← Back"
+            android:textColor="@color/bb_text_white"
+            android:background="@drawable/btn_bb_action"
+            android:textSize="12sp"
+            android:paddingLeft="10dp"
+            android:paddingRight="10dp" />
+
+        <TextView
+            android:id="@+id/tvHeaderTitle"
+            android:layout_width="0dp"
+            android:layout_height="wrap_content"
+            android:layout_weight="1"
+            android:paddingLeft="12dp"
+            android:text="Settings"
+            android:textColor="@color/bb_text_white"
+            android:textSize="15sp"
+            android:textStyle="bold"
+            android:singleLine="true" />
+    </LinearLayout>
+
+    <View
+        android:layout_width="match_parent"
+        android:layout_height="1dp"
+        android:background="@color/bb_border" />
+
+    <ScrollView
+        android:layout_width="match_parent"
+        android:layout_height="match_parent"
+        android:padding="14dp">
+
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:orientation="vertical">
+
+            <!-- Section 1: Storage Location -->
+            <TextView
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="DOWNLOAD STORAGE LOCATION"
+                android:textColor="@color/bb_blue"
+                android:textSize="11sp"
+                android:textStyle="bold"
+                android:layout_marginBottom="8dp" />
+
+            <LinearLayout
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:orientation="vertical"
+                android:background="@drawable/card_bg"
+                android:padding="12dp"
+                android:layout_marginBottom="14dp">
+
+                <!-- Radio 1: SD Card -->
+                <Button
+                    android:id="@+id/btnStorageSdCard"
+                    android:layout_width="match_parent"
+                    android:layout_height="40dp"
+                    android:text="[•] Removable MicroSD Card"
+                    android:textColor="@color/bb_blue"
+                    android:background="@drawable/btn_bb_action"
+                    android:gravity="left|center_vertical"
+                    android:paddingLeft="12dp"
+                    android:textSize="13sp"
+                    android:layout_marginBottom="8dp" />
+
+                <!-- Radio 2: Internal Storage -->
+                <Button
+                    android:id="@+id/btnStorageInternal"
+                    android:layout_width="match_parent"
+                    android:layout_height="40dp"
+                    android:text="[ ] Internal Device Storage"
+                    android:textColor="@color/bb_text_white"
+                    android:background="@drawable/btn_bb_action"
+                    android:gravity="left|center_vertical"
+                    android:paddingLeft="12dp"
+                    android:textSize="13sp"
+                    android:layout_marginBottom="8dp" />
+
+                <!-- Radio 3: Custom Path -->
+                <Button
+                    android:id="@+id/btnStorageCustom"
+                    android:layout_width="match_parent"
+                    android:layout_height="40dp"
+                    android:text="[ ] Custom Directory Path"
+                    android:textColor="@color/bb_text_white"
+                    android:background="@drawable/btn_bb_action"
+                    android:gravity="left|center_vertical"
+                    android:paddingLeft="12dp"
+                    android:textSize="13sp"
+                    android:layout_marginBottom="8dp" />
+
+                <!-- Custom Path Edit Field -->
+                <LinearLayout
+                    android:id="@+id/layoutCustomPath"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:orientation="vertical"
+                    android:visibility="gone"
+                    android:layout_marginBottom="8dp">
+
+                    <EditText
+                        android:id="@+id/etCustomPath"
+                        android:layout_width="match_parent"
+                        android:layout_height="38dp"
+                        android:background="@drawable/input_bg"
+                        android:hint="/accounts/1000/removable/sdcard/PodBB"
+                        android:textColorHint="@color/bb_text_dim"
+                        android:textColor="@color/bb_text_white"
+                        android:textSize="12sp"
+                        android:paddingLeft="10dp"
+                        android:paddingRight="10dp"
+                        android:singleLine="true" />
+
+                    <Button
+                        android:id="@+id/btnSaveCustomPath"
+                        android:layout_width="wrap_content"
+                        android:layout_height="32dp"
+                        android:text="[apply custom path]"
+                        android:textColor="@color/bb_blue"
+                        android:background="@drawable/btn_bb_action"
+                        android:textSize="11sp"
+                        android:layout_marginTop="6dp" />
+                </LinearLayout>
+
+                <View
+                    android:layout_width="match_parent"
+                    android:layout_height="1dp"
+                    android:background="@color/bb_border"
+                    android:layout_marginTop="4dp"
+                    android:layout_marginBottom="8dp" />
+
+                <!-- Active path display -->
+                <TextView
+                    android:id="@+id/tvActivePath"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:text="Active Path: /accounts/1000/removable/sdcard/PodBB"
+                    android:textColor="@color/bb_text_dim"
+                    android:textSize="11sp" />
+
+                <TextView
+                    android:id="@+id/tvFreeSpace"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:text="Free Space: Checking..."
+                    android:textColor="@color/bb_text_dim"
+                    android:textSize="11sp"
+                    android:layout_marginTop="4dp" />
+            </LinearLayout>
+
+            <!-- Section 2: Maintenance -->
+            <TextView
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="STORAGE MAINTENANCE"
+                android:textColor="@color/bb_blue"
+                android:textSize="11sp"
+                android:textStyle="bold"
+                android:layout_marginBottom="8dp" />
+
+            <LinearLayout
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:orientation="vertical"
+                android:background="@drawable/card_bg"
+                android:padding="12dp"
+                android:layout_marginBottom="14dp">
+
+                <Button
+                    android:id="@+id/btnClearCache"
+                    android:layout_width="match_parent"
+                    android:layout_height="40dp"
+                    android:text="[clear cover artwork cache]"
+                    android:textColor="@color/bb_text_white"
+                    android:background="@drawable/btn_bb_action"
+                    android:textSize="12sp" />
+
+                <TextView
+                    android:id="@+id/tvCacheStatus"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:text="Clearing cache frees device storage without affecting downloaded episodes."
+                    android:textColor="@color/bb_text_dim"
+                    android:textSize="11sp"
+                    android:layout_marginTop="6dp" />
+            </LinearLayout>
+
+            <!-- Section 3: App info -->
+            <TextView
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="ABOUT PODBB"
+                android:textColor="@color/bb_blue"
+                android:textSize="11sp"
+                android:textStyle="bold"
+                android:layout_marginBottom="8dp" />
+
+            <LinearLayout
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:orientation="vertical"
+                android:background="@drawable/card_bg"
+                android:padding="12dp">
+
+                <TextView
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:text="PodBB for BlackBerry Q5 (BB10)"
+                    android:textColor="@color/bb_text_white"
+                    android:textSize="13sp"
+                    android:textStyle="bold" />
+
+                <TextView
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:text="Version 1.4.0 • SpaceGrotesk • MicroSD Support\nNative offline downloads • NoteVault UI style"
+                    android:textColor="@color/bb_text_dim"
+                    android:textSize="11sp"
+                    android:layout_marginTop="4dp" />
+            </LinearLayout>
+
+        </LinearLayout>
+    </ScrollView>
+
+</LinearLayout>
