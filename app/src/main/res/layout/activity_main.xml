@@ -1,0 +1,87 @@
+<?xml version="1.0" encoding="utf-8"?>
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:orientation="vertical"
+    android:background="@color/bg_primary">
+
+    <TextView
+        android:id="@+id/tvTitle"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:padding="16dp"
+        android:text="PodBB"
+        android:textColor="@color/accent_green"
+        android:textSize="20sp"
+        android:typeface="monospace" />
+
+    <View android:layout_width="match_parent" android:layout_height="1dp" android:background="@color/divider" />
+
+    <ListView
+        android:id="@+id/listSubscriptions"
+        android:layout_width="match_parent"
+        android:layout_height="0dp"
+        android:layout_weight="1"
+        android:background="@color/bg_primary"
+        android:divider="@color/divider"
+        android:dividerHeight="1dp" />
+
+    <TextView
+        android:id="@+id/tvEmpty"
+        android:layout_width="match_parent"
+        android:layout_height="0dp"
+        android:layout_weight="1"
+        android:gravity="center"
+        android:padding="32dp"
+        android:text="@string/no_subscriptions"
+        android:textColor="@color/text_muted"
+        android:textSize="13sp"
+        android:typeface="monospace"
+        android:visibility="gone" />
+
+    <View android:layout_width="match_parent" android:layout_height="1dp" android:background="@color/divider" />
+
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="48dp"
+        android:orientation="horizontal"
+        android:background="@color/bg_secondary">
+
+        <TextView
+            android:id="@+id/navSubscriptions"
+            android:layout_width="0dp"
+            android:layout_height="match_parent"
+            android:layout_weight="1"
+            android:gravity="center"
+            android:text="[subs]"
+            android:textColor="@color/accent_green"
+            android:textSize="12sp"
+            android:typeface="monospace" />
+
+        <View android:layout_width="1dp" android:layout_height="match_parent" android:background="@color/divider" />
+
+        <TextView
+            android:id="@+id/navSearch"
+            android:layout_width="0dp"
+            android:layout_height="match_parent"
+            android:layout_weight="1"
+            android:gravity="center"
+            android:text="[search]"
+            android:textColor="@color/text_muted"
+            android:textSize="12sp"
+            android:typeface="monospace" />
+
+        <View android:layout_width="1dp" android:layout_height="match_parent" android:background="@color/divider" />
+
+        <TextView
+            android:id="@+id/navDownloads"
+            android:layout_width="0dp"
+            android:layout_height="match_parent"
+            android:layout_weight="1"
+            android:gravity="center"
+            android:text="[dl]"
+            android:textColor="@color/text_muted"
+            android:textSize="12sp"
+            android:typeface="monospace" />
+    </LinearLayout>
+</LinearLayout>

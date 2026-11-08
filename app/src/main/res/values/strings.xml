@@ -1,0 +1,19 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_name">PodBB</string>
+    <string name="subscriptions">subscriptions</string>
+    <string name="search">search</string>
+    <string name="downloads">downloads</string>
+    <string name="subscribe">subscribe</string>
+    <string name="unsubscribe">unsubscribe</string>
+    <string name="play">play</string>
+    <string name="pause">pause</string>
+    <string name="download">download</string>
+    <string name="delete">delete</string>
+    <string name="no_subscriptions">no subscriptions yet\n[search] to find podcasts</string>
+    <string name="no_downloads">no downloads yet</string>
+    <string name="no_results">no results</string>
+    <string name="loading">loading...</string>
+    <string name="error_network">network error</string>
+    <string name="now_playing">now playing</string>
+</resources>
