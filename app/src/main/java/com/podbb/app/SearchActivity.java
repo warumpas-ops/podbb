@@ -63,6 +63,7 @@ public class SearchActivity extends Activity {
 
         // Load top podcasts by default
         loadInitial();
+        FontHelper.apply(findViewById(android.R.id.content), this);
     }
 
     private void loadInitial() {
@@ -124,6 +125,7 @@ public class SearchActivity extends Activity {
             tvAuthor.setText(p.author != null && !p.author.isEmpty() ? p.author : "Creator");
             tvGenre.setText(p.description != null && !p.description.isEmpty() ? p.description.replaceAll("<[^>]*>", "").trim() : "Podcast");
 
+            FontHelper.apply(convertView, SearchActivity.this);
             return convertView;
         }
     }

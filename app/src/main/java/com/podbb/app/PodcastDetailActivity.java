@@ -122,6 +122,7 @@ public class PodcastDetailActivity extends Activity {
         });
 
         loadEpisodes(feedUrl, podcastId);
+        FontHelper.apply(findViewById(android.R.id.content), this);
     }
 
     private void loadEpisodes(final String feedUrl, final long podcastId) {
@@ -237,6 +238,7 @@ public class PodcastDetailActivity extends Activity {
                 tvStatus.setTextColor(0xFF888888);
             }
 
+            FontHelper.apply(convertView, PodcastDetailActivity.this);
             return convertView;
         }
     }

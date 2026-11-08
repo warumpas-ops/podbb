@@ -186,6 +186,7 @@ public class PlayerActivity extends Activity {
         Intent serviceIntent = new Intent(this, PlayerService.class);
         startService(serviceIntent);
         bindService(serviceIntent, connection, BIND_AUTO_CREATE);
+        FontHelper.apply(findViewById(android.R.id.content), this);
     }
 
     private void updateSourceBadge() {

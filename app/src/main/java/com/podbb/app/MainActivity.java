@@ -166,6 +166,7 @@ public class MainActivity extends Activity {
         });
 
         bindService(new Intent(this, PlayerService.class), serviceConn, BIND_AUTO_CREATE);
+        FontHelper.apply(findViewById(R.id.rootView), this);
     }
 
     private void openPodcast(Podcast p) {
@@ -319,6 +320,7 @@ public class MainActivity extends Activity {
             tvCategory.setText("[tap to view]");
 
             imageLoader.displayImage(p.imageUrl, imgCoverThumb, R.drawable.ic_launcher);
+            FontHelper.apply(convertView, MainActivity.this);
             return convertView;
         }
     }

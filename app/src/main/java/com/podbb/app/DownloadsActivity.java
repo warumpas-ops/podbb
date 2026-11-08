@@ -61,6 +61,8 @@ public class DownloadsActivity extends Activity {
                 .show();
             return true;
         });
+
+        FontHelper.apply(findViewById(android.R.id.content), this);
     }
 
     private void refresh() {
@@ -98,6 +100,7 @@ public class DownloadsActivity extends Activity {
             tvDuration.setText(ep.podcastTitle != null ? ep.podcastTitle : "Offline Episode");
             tvStatus.setText("[play offline]");
             tvStatus.setTextColor(0xFF00A8DF);
+            FontHelper.apply(convertView, DownloadsActivity.this);
             return convertView;
         }
     }
