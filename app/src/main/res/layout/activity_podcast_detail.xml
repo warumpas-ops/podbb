@@ -6,11 +6,11 @@
     android:orientation="vertical"
     android:background="@color/bg">
 
-    <!-- Fixed Compact Header Bar -->
+    <!-- Top Action / Header Bar -->
     <LinearLayout
         android:id="@+id/headerBar"
         android:layout_width="match_parent"
-        android:layout_height="48dp"
+        android:layout_height="44dp"
         android:orientation="horizontal"
         android:gravity="center_vertical"
         android:background="@color/header_bg"
@@ -20,7 +20,7 @@
         <Button
             android:id="@+id/btnBack"
             android:layout_width="wrap_content"
-            android:layout_height="32dp"
+            android:layout_height="30dp"
             android:text="← Back"
             android:textColor="@color/text_primary"
             android:background="@drawable/btn_action"
@@ -35,17 +35,16 @@
             android:layout_weight="1"
             android:paddingLeft="10dp"
             android:paddingRight="10dp"
-            android:text="Podcast"
-            android:textColor="@color/text_primary"
-            android:textSize="14sp"
-            android:textStyle="bold"
+            android:text="[podcasts]"
+            android:textColor="@color/text_secondary"
+            android:textSize="13sp"
             android:singleLine="true"
             android:ellipsize="end" />
 
         <Button
             android:id="@+id/btnSubscribe"
             android:layout_width="wrap_content"
-            android:layout_height="32dp"
+            android:layout_height="30dp"
             android:text="+ Subscribe"
             android:textColor="@color/text_primary"
             android:background="@drawable/btn_accent"
@@ -59,11 +58,199 @@
         android:layout_height="1dp"
         android:background="@color/divider" />
 
-    <!-- Full-height scrollable list (hero banner is embedded as header and scrolls away smoothly) -->
+    <!-- Sticky Podcast Panel (stays still at top, minimizes smoothly on scroll into search-result card shape) -->
+    <LinearLayout
+        android:id="@+id/panelStickyPodcast"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:orientation="vertical"
+        android:background="@color/surface">
+
+        <!-- 1. EXPANDED HERO VIEW (initial unscrolled state) -->
+        <LinearLayout
+            android:id="@+id/panelExpanded"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:orientation="vertical">
+
+            <LinearLayout
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:orientation="horizontal"
+                android:padding="12dp"
+                android:gravity="center_vertical">
+
+                <ImageView
+                    android:id="@+id/imgPodcastCover"
+                    android:layout_width="82dp"
+                    android:layout_height="82dp"
+                    android:src="@drawable/ic_launcher"
+                    android:scaleType="centerCrop"
+                    android:background="@drawable/card_bg" />
+
+                <LinearLayout
+                    android:layout_width="0dp"
+                    android:layout_height="wrap_content"
+                    android:layout_weight="1"
+                    android:orientation="vertical"
+                    android:paddingLeft="12dp">
+
+                    <TextView
+                        android:id="@+id/tvPodcastTitle"
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:text="Podcast Title"
+                        android:textColor="@color/text_primary"
+                        android:textSize="15sp"
+                        android:textStyle="bold"
+                        android:maxLines="2"
+                        android:ellipsize="end" />
+
+                    <TextView
+                        android:id="@+id/tvAuthor"
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:layout_marginTop="2dp"
+                        android:text="Author Name"
+                        android:textColor="@color/text_secondary"
+                        android:textSize="12sp"
+                        android:singleLine="true" />
+
+                    <TextView
+                        android:id="@+id/tvGenrePill"
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:layout_marginTop="4dp"
+                        android:text="Podcast"
+                        android:textColor="@color/accent_blue"
+                        android:background="@drawable/pill_badge"
+                        android:textSize="10sp" />
+                </LinearLayout>
+            </LinearLayout>
+
+            <View
+                android:layout_width="match_parent"
+                android:layout_height="1dp"
+                android:background="@color/divider" />
+
+            <!-- Episodes Sub-Header -->
+            <LinearLayout
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:orientation="horizontal"
+                android:paddingLeft="14dp"
+                android:paddingRight="14dp"
+                android:paddingTop="6dp"
+                android:paddingBottom="6dp">
+
+                <TextView
+                    android:layout_width="0dp"
+                    android:layout_height="wrap_content"
+                    android:layout_weight="1"
+                    android:text="EPISODES"
+                    android:textColor="@color/text_secondary"
+                    android:textSize="11sp"
+                    android:textStyle="bold" />
+
+                <TextView
+                    android:id="@+id/tvEpisodesStatus"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:text="Loading feed..."
+                    android:textColor="@color/accent_blue"
+                    android:textSize="11sp" />
+            </LinearLayout>
+        </LinearLayout>
+
+        <!-- 2. MINIMIZED COMPACT VIEW (exact shape as item_search_result) -->
+        <LinearLayout
+            android:id="@+id/panelMinimized"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:orientation="horizontal"
+            android:paddingLeft="12dp"
+            android:paddingRight="12dp"
+            android:paddingTop="8dp"
+            android:paddingBottom="8dp"
+            android:gravity="center_vertical"
+            android:background="@color/header_bg"
+            android:visibility="gone">
+
+            <ImageView
+                android:id="@+id/imgPodcastCoverMini"
+                android:layout_width="44dp"
+                android:layout_height="44dp"
+                android:src="@drawable/ic_launcher"
+                android:scaleType="centerCrop"
+                android:background="@drawable/card_bg"
+                android:layout_marginRight="10dp" />
+
+            <LinearLayout
+                android:layout_width="0dp"
+                android:layout_height="wrap_content"
+                android:layout_weight="1"
+                android:orientation="vertical">
+
+                <LinearLayout
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:orientation="horizontal"
+                    android:gravity="center_vertical">
+
+                    <TextView
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:text="[pod]"
+                        android:textColor="@color/bb_blue"
+                        android:textSize="11sp"
+                        android:paddingRight="6dp" />
+
+                    <TextView
+                        android:id="@+id/tvPodcastTitleMini"
+                        android:layout_width="0dp"
+                        android:layout_height="wrap_content"
+                        android:layout_weight="1"
+                        android:textColor="@color/bb_text_white"
+                        android:textSize="14sp"
+                        android:textStyle="bold"
+                        android:singleLine="true"
+                        android:ellipsize="end" />
+                </LinearLayout>
+
+                <TextView
+                    android:id="@+id/tvAuthorMini"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:textColor="@color/bb_text_dim"
+                    android:textSize="12sp"
+                    android:singleLine="true"
+                    android:ellipsize="end"
+                    android:layout_marginTop="2dp" />
+
+                <TextView
+                    android:id="@+id/tvStatusMini"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:textColor="@color/bb_blue"
+                    android:textSize="10sp"
+                    android:layout_marginTop="2dp"
+                    android:text="Loading..." />
+            </LinearLayout>
+        </LinearLayout>
+
+        <View
+            android:layout_width="match_parent"
+            android:layout_height="1dp"
+            android:background="@color/divider" />
+
+    </LinearLayout>
+
+    <!-- Scrollable Episode List (episodes roll underneath the sticky panel) -->
     <ListView
         android:id="@+id/listEpisodes"
         android:layout_width="match_parent"
-        android:layout_height="match_parent"
+        android:layout_height="0dp"
+        android:layout_weight="1"
         android:divider="@color/divider"
         android:dividerHeight="1dp"
         android:paddingLeft="10dp"

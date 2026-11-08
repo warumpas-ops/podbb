@@ -1,13 +1,18 @@
 package com.podbb.app;
 
+import android.animation.Animator;
+import android.animation.AnimatorListenerAdapter;
+import android.animation.ValueAnimator;
 import android.app.Activity;
 import android.content.Intent;
 import android.os.Bundle;
 import android.view.View;
 import android.view.ViewGroup;
+import android.widget.AbsListView;
 import android.widget.BaseAdapter;
 import android.widget.Button;
 import android.widget.ImageView;
+import android.widget.LinearLayout;
 import android.widget.ListView;
 import android.widget.TextView;
 import java.util.ArrayList;
@@ -19,8 +24,27 @@ public class PodcastDetailActivity extends Activity {
     private final List<Episode> episodes = new ArrayList<>();
     private EpisodeAdapter adapter;
     private Button btnSubscribe;
-    private TextView tvEpisodesStatus;
+
+    // Sticky podcast panel & modes
+    private LinearLayout panelStickyPodcast;
+    private View panelExpanded;
+    private View panelMinimized;
+    private boolean isMinimized = false;
+    private ValueAnimator currentAnimator;
+
+    // Expanded views
     private ImageView imgPodcastCover;
+    private TextView tvPodcastTitle;
+    private TextView tvAuthor;
+    private TextView tvGenrePill;
+    private TextView tvEpisodesStatus;
+
+    // Minimized views (exact same shape as item_search_result)
+    private ImageView imgPodcastCoverMini;
+    private TextView tvPodcastTitleMini;
+    private TextView tvAuthorMini;
+    private TextView tvStatusMini;
+
     private ImageLoader imageLoader;
     private boolean isSubscribed = false;
 
@@ -43,28 +67,45 @@ public class PodcastDetailActivity extends Activity {
         btnBack.setOnClickListener(v -> finish());
 
         TextView tvHeaderTitle = (TextView) findViewById(R.id.tvHeaderTitle);
-        tvHeaderTitle.setText(title != null ? title : "Podcast");
+        tvHeaderTitle.setText("[podcasts]");
 
         btnSubscribe = (Button) findViewById(R.id.btnSubscribe);
         ListView listEpisodes = (ListView) findViewById(R.id.listEpisodes);
 
-        // Inflate scrollable hero banner header
-        View headerView = getLayoutInflater().inflate(R.layout.header_podcast_detail, listEpisodes, false);
-        TextView tvPodcastTitle = (TextView) headerView.findViewById(R.id.tvPodcastTitle);
-        tvPodcastTitle.setText(title);
+        // Sticky Podcast Panel
+        panelStickyPodcast = (LinearLayout) findViewById(R.id.panelStickyPodcast);
+        panelExpanded = findViewById(R.id.panelExpanded);
+        panelMinimized = findViewById(R.id.panelMinimized);
 
-        TextView tvAuthor = (TextView) headerView.findViewById(R.id.tvAuthor);
-        tvAuthor.setText(author != null && !author.isEmpty() ? author : "Creator");
+        // Expanded view elements
+        imgPodcastCover = (ImageView) findViewById(R.id.imgPodcastCover);
+        tvPodcastTitle = (TextView) findViewById(R.id.tvPodcastTitle);
+        tvAuthor = (TextView) findViewById(R.id.tvAuthor);
+        tvGenrePill = (TextView) findViewById(R.id.tvGenrePill);
+        tvEpisodesStatus = (TextView) findViewById(R.id.tvEpisodesStatus);
 
-        TextView tvGenrePill = (TextView) headerView.findViewById(R.id.tvGenrePill);
-        tvGenrePill.setText(description != null && !description.isEmpty() ? description.replaceAll("<[^>]*>", "").trim() : "Podcast");
+        // Minimized view elements (search result shape)
+        imgPodcastCoverMini = (ImageView) findViewById(R.id.imgPodcastCoverMini);
+        tvPodcastTitleMini = (TextView) findViewById(R.id.tvPodcastTitleMini);
+        tvAuthorMini = (TextView) findViewById(R.id.tvAuthorMini);
+        tvStatusMini = (TextView) findViewById(R.id.tvStatusMini);
 
-        tvEpisodesStatus = (TextView) headerView.findViewById(R.id.tvEpisodesStatus);
-        imgPodcastCover = (ImageView) headerView.findViewById(R.id.imgPodcastCover);
+        // Set titles and authors
+        tvPodcastTitle.setText(title != null ? title : "Podcast");
+        tvPodcastTitleMini.setText(title != null ? title : "Podcast");
 
-        // Add the hero panel header to the ListView (non-selectable, scrolls away smoothly)
-        listEpisodes.addHeaderView(headerView, null, false);
-        FontHelper.apply(headerView, this);
+        String displayAuthor = (author != null && !author.isEmpty()) ? author : "Creator";
+        tvAuthor.setText(displayAuthor);
+        tvAuthorMini.setText(displayAuthor);
+
+        String cleanDesc = (description != null && !description.isEmpty()) ? description.replaceAll("<[^>]*>", "").trim() : "Podcast";
+        tvGenrePill.setText(cleanDesc);
+
+        tvEpisodesStatus.setText("Loading feed...");
+        tvStatusMini.setText("Loading feed...");
+
+        // Tapping the sticky panel toggles expanded/minimized
+        panelStickyPodcast.setOnClickListener(v -> setHeroMinimized(!isMinimized));
 
         // Determine subscription state by checking if feed is in database
         Podcast existing = db.getPodcastByFeedUrl(feedUrl);
@@ -80,8 +121,9 @@ public class PodcastDetailActivity extends Activity {
             isSubscribed = false;
         }
 
-        // Load cover art instantly from cache/disk
+        // Load cover art instantly from cache/disk for both expanded and mini views
         imageLoader.displayImage(imageUrl, imgPodcastCover, R.drawable.ic_launcher);
+        imageLoader.displayImage(imageUrl, imgPodcastCoverMini, R.drawable.ic_launcher);
 
         updateSubscribeButton();
 
@@ -101,9 +143,30 @@ public class PodcastDetailActivity extends Activity {
         adapter = new EpisodeAdapter();
         listEpisodes.setAdapter(adapter);
 
+        // When scrolling the episodes, smoothly minimize the hero into search result shape
+        // and keep it still at the top while episodes scroll underneath it
+        listEpisodes.setOnScrollListener(new AbsListView.OnScrollListener() {
+            @Override
+            public void onScrollStateChanged(AbsListView view, int scrollState) {}
+
+            @Override
+            public void onScroll(AbsListView view, int firstVisibleItem, int visibleItemCount, int totalItemCount) {
+                if (totalItemCount == 0) return;
+                View firstChild = view.getChildAt(0);
+                int top = (firstChild != null) ? firstChild.getTop() : 0;
+
+                // When at the very top of the list, expand back to full hero
+                if (firstVisibleItem == 0 && top >= -15) {
+                    setHeroMinimized(false);
+                } else if (firstVisibleItem > 0 || top < -35) {
+                    setHeroMinimized(true);
+                }
+            }
+        });
+
         listEpisodes.setOnItemClickListener((parent, view, position, id) -> {
             Object item = parent.getItemAtPosition(position);
-            if (!(item instanceof Episode)) return; // Ignore header clicks
+            if (!(item instanceof Episode)) return;
             Episode ep = (Episode) item;
             Intent intent = new Intent(PodcastDetailActivity.this, PlayerActivity.class);
             intent.putExtra("episode_id", ep.id);
@@ -129,8 +192,89 @@ public class PodcastDetailActivity extends Activity {
         FontHelper.apply(findViewById(android.R.id.content), this);
     }
 
+    private void setHeroMinimized(final boolean minimize) {
+        if (this.isMinimized == minimize) return;
+        this.isMinimized = minimize;
+
+        if (currentAnimator != null && currentAnimator.isRunning()) {
+            currentAnimator.cancel();
+        }
+
+        if (minimize) {
+            // Smoothly collapse Expanded -> Minimized (Search Result Shape)
+            panelMinimized.setVisibility(View.VISIBLE);
+            panelMinimized.setAlpha(0f);
+
+            final int startHeight = panelStickyPodcast.getHeight();
+            int targetH = dpToPx(56);
+
+            currentAnimator = ValueAnimator.ofFloat(0f, 1f);
+            currentAnimator.setDuration(200);
+            final int fromH = startHeight > 0 ? startHeight : dpToPx(112);
+            final int toH = targetH;
+
+            currentAnimator.addUpdateListener(animation -> {
+                float f = animation.getAnimatedFraction();
+                panelExpanded.setAlpha(1f - f);
+                panelMinimized.setAlpha(f);
+                ViewGroup.LayoutParams lp = panelStickyPodcast.getLayoutParams();
+                lp.height = (int) (fromH + (toH - fromH) * f);
+                panelStickyPodcast.setLayoutParams(lp);
+            });
+            currentAnimator.addListener(new AnimatorListenerAdapter() {
+                @Override
+                public void onAnimationEnd(Animator animation) {
+                    panelExpanded.setVisibility(View.GONE);
+                    panelMinimized.setAlpha(1f);
+                    ViewGroup.LayoutParams lp = panelStickyPodcast.getLayoutParams();
+                    lp.height = ViewGroup.LayoutParams.WRAP_CONTENT;
+                    panelStickyPodcast.setLayoutParams(lp);
+                }
+            });
+            currentAnimator.start();
+
+        } else {
+            // Smoothly expand Minimized -> Expanded (Hero View)
+            panelExpanded.setVisibility(View.VISIBLE);
+            panelExpanded.setAlpha(0f);
+
+            final int startHeight = panelStickyPodcast.getHeight();
+            int targetH = dpToPx(112);
+
+            currentAnimator = ValueAnimator.ofFloat(0f, 1f);
+            currentAnimator.setDuration(200);
+            final int fromH = startHeight > 0 ? startHeight : dpToPx(56);
+            final int toH = targetH;
+
+            currentAnimator.addUpdateListener(animation -> {
+                float f = animation.getAnimatedFraction();
+                panelMinimized.setAlpha(1f - f);
+                panelExpanded.setAlpha(f);
+                ViewGroup.LayoutParams lp = panelStickyPodcast.getLayoutParams();
+                lp.height = (int) (fromH + (toH - fromH) * f);
+                panelStickyPodcast.setLayoutParams(lp);
+            });
+            currentAnimator.addListener(new AnimatorListenerAdapter() {
+                @Override
+                public void onAnimationEnd(Animator animation) {
+                    panelMinimized.setVisibility(View.GONE);
+                    panelExpanded.setAlpha(1f);
+                    ViewGroup.LayoutParams lp = panelStickyPodcast.getLayoutParams();
+                    lp.height = ViewGroup.LayoutParams.WRAP_CONTENT;
+                    panelStickyPodcast.setLayoutParams(lp);
+                }
+            });
+            currentAnimator.start();
+        }
+    }
+
+    private int dpToPx(int dp) {
+        return (int) (dp * getResources().getDisplayMetrics().density + 0.5f);
+    }
+
     private void loadEpisodes(final String feedUrl, final long podcastId) {
         tvEpisodesStatus.setText("Fetching feed...");
+        tvStatusMini.setText("Fetching feed...");
         new Thread(new Runnable() {
             @Override
             public void run() {
@@ -142,55 +286,45 @@ public class PodcastDetailActivity extends Activity {
                         if (podcast.imageUrl == null || podcast.imageUrl.isEmpty()) {
                             podcast.imageUrl = feed.channelImageUrl;
                         }
-                        // Show RSS cover (may be higher quality than gpodder thumbnail)
                         final String rssImg = feed.channelImageUrl;
-                        runOnUiThread(new Runnable() {
-                            @Override
-                            public void run() {
-                                imageLoader.displayImage(rssImg, imgPodcastCover, R.drawable.ic_launcher);
-                            }
+                        runOnUiThread(() -> {
+                            imageLoader.displayImage(rssImg, imgPodcastCover, R.drawable.ic_launcher);
+                            imageLoader.displayImage(rssImg, imgPodcastCoverMini, R.drawable.ic_launcher);
                         });
                     } else if (podcast.imageUrl != null && !podcast.imageUrl.isEmpty()) {
-                        // Keep showing the gpodder logo we already loaded
                         final String existingImg = podcast.imageUrl;
-                        runOnUiThread(new Runnable() {
-                            @Override
-                            public void run() {
-                                imageLoader.displayImage(existingImg, imgPodcastCover, R.drawable.ic_launcher);
-                            }
+                        runOnUiThread(() -> {
+                            imageLoader.displayImage(existingImg, imgPodcastCover, R.drawable.ic_launcher);
+                            imageLoader.displayImage(existingImg, imgPodcastCoverMini, R.drawable.ic_launcher);
                         });
                     }
 
                     if (isSubscribed && podcast.id > 0) {
                         db.upsertEpisodes(podcast.id, feed.episodes);
                         final List<Episode> saved = db.getEpisodesForPodcast(podcast.id);
-                        runOnUiThread(new Runnable() {
-                            @Override
-                            public void run() {
-                                episodes.clear();
-                                episodes.addAll(saved);
-                                adapter.notifyDataSetChanged();
-                                tvEpisodesStatus.setText(saved.size() + " episodes");
-                            }
+                        runOnUiThread(() -> {
+                            episodes.clear();
+                            episodes.addAll(saved);
+                            adapter.notifyDataSetChanged();
+                            String countStr = saved.size() + " episodes";
+                            tvEpisodesStatus.setText(countStr);
+                            tvStatusMini.setText(countStr);
                         });
                     } else {
-                        runOnUiThread(new Runnable() {
-                            @Override
-                            public void run() {
-                                episodes.clear();
-                                episodes.addAll(feed.episodes);
-                                adapter.notifyDataSetChanged();
-                                tvEpisodesStatus.setText(feed.episodes.size() + " episodes");
-                            }
+                        runOnUiThread(() -> {
+                            episodes.clear();
+                            episodes.addAll(feed.episodes);
+                            adapter.notifyDataSetChanged();
+                            String countStr = feed.episodes.size() + " episodes";
+                            tvEpisodesStatus.setText(countStr);
+                            tvStatusMini.setText(countStr);
                         });
                     }
                 } catch (Exception e) {
                     final String msg = e.getMessage() != null ? e.getMessage() : "offline";
-                    runOnUiThread(new Runnable() {
-                        @Override
-                        public void run() {
-                            tvEpisodesStatus.setText("Feed error: " + msg);
-                        }
+                    runOnUiThread(() -> {
+                        tvEpisodesStatus.setText("Feed error: " + msg);
+                        tvStatusMini.setText("Feed error");
                     });
                 }
             }
