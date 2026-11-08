@@ -118,12 +118,14 @@ public class SearchActivity extends Activity {
             }
             Podcast p = results.get(position);
             TextView tvTitle = (TextView) convertView.findViewById(R.id.tvTitle);
-            TextView tvAuthor = (TextView) convertView.findViewById(R.id.tvAuthor);
-            TextView tvGenre = (TextView) convertView.findViewById(R.id.tvGenre);
+            TextView tvPreview = (TextView) convertView.findViewById(R.id.tvPreview);
+            TextView tvCategory = (TextView) convertView.findViewById(R.id.tvCategory);
 
-            tvTitle.setText(p.title);
-            tvAuthor.setText(p.author != null && !p.author.isEmpty() ? p.author : "Creator");
-            tvGenre.setText(p.description != null && !p.description.isEmpty() ? p.description.replaceAll("<[^>]*>", "").trim() : "Podcast");
+            if (tvTitle != null) tvTitle.setText(p.title);
+            String desc = p.author != null && !p.author.isEmpty() ? p.author
+                        : (p.description != null ? p.description.replaceAll("<[^>]*>", "").trim() : "Podcast");
+            if (tvPreview != null) tvPreview.setText(desc);
+            if (tvCategory != null) tvCategory.setText("[tap to view]");
 
             FontHelper.apply(convertView, SearchActivity.this);
             return convertView;

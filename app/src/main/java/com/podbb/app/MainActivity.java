@@ -10,6 +10,7 @@ import android.text.Editable;
 import android.text.TextWatcher;
 import android.view.View;
 import android.view.ViewGroup;
+import android.widget.AbsListView;
 import android.widget.BaseAdapter;
 import android.widget.Button;
 import android.widget.EditText;
@@ -279,11 +280,14 @@ public class MainActivity extends Activity {
                 img = (ImageView) convertView.getTag();
             }
 
-            // Force square: width = one-third of screen
             int screenWidth = getResources().getDisplayMetrics().widthPixels;
-            int cellSize = (screenWidth - 12) / 3; // 3 cols, 3dp gaps
+            int cellSize = Math.max(80, (screenWidth - 12) / 3); // 3 cols, 3dp gaps
             ViewGroup.LayoutParams lp = convertView.getLayoutParams();
-            lp.height = cellSize;
+            if (lp == null) {
+                lp = new AbsListView.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, cellSize);
+            } else {
+                lp.height = cellSize;
+            }
             convertView.setLayoutParams(lp);
 
             Podcast p = subscribedList.get(position);
@@ -312,14 +316,16 @@ public class MainActivity extends Activity {
             TextView tvPreview  = (TextView) convertView.findViewById(R.id.tvPreview);
             TextView tvCategory = (TextView) convertView.findViewById(R.id.tvCategory);
 
-            tvTypeTag.setText("[pod]");
-            tvTitle.setText(p.title);
+            if (tvTypeTag != null) tvTypeTag.setText("[pod]");
+            if (tvTitle != null) tvTitle.setText(p.title != null ? p.title : "Podcast");
             String sub = p.author != null && !p.author.isEmpty() ? p.author
                        : (p.description != null ? p.description.replaceAll("<[^>]*>", "").trim() : "Podcast");
-            tvPreview.setText(sub);
-            tvCategory.setText("[tap to view]");
+            if (tvPreview != null) tvPreview.setText(sub);
+            if (tvCategory != null) tvCategory.setText("[tap to view]");
 
-            imageLoader.displayImage(p.imageUrl, imgCoverThumb, R.drawable.ic_launcher);
+            if (imgCoverThumb != null) {
+                imageLoader.displayImage(p.imageUrl, imgCoverThumb, R.drawable.ic_launcher);
+            }
             FontHelper.apply(convertView, MainActivity.this);
             return convertView;
         }

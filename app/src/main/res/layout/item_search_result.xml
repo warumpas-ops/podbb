@@ -8,8 +8,10 @@
     android:paddingRight="12dp"
     android:paddingTop="10dp"
     android:paddingBottom="10dp"
-    android:gravity="center_vertical">
+    android:gravity="center_vertical"
+    android:background="@drawable/card_selector">
 
+    <!-- Cover Art Thumbnail -->
     <ImageView
         android:id="@+id/imgCoverThumb"
         android:layout_width="44dp"
@@ -32,9 +34,10 @@
             android:gravity="center_vertical">
 
             <TextView
+                android:id="@+id/tvTypeTag"
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
-                android:text="[result]"
+                android:text="[pod]"
                 android:textColor="@color/bb_blue"
                 android:textSize="11sp"
                 android:paddingRight="6dp" />
@@ -52,7 +55,7 @@
         </LinearLayout>
 
         <TextView
-            android:id="@+id/tvAuthor"
+            android:id="@+id/tvPreview"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
             android:textColor="@color/bb_text_dim"
@@ -62,7 +65,7 @@
             android:layout_marginTop="2dp" />
 
         <TextView
-            android:id="@+id/tvGenre"
+            android:id="@+id/tvCategory"
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
             android:textColor="@color/bb_blue"
