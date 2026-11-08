@@ -5,9 +5,10 @@ import org.xmlpull.v1.XmlPullParser;
 import org.xmlpull.v1.XmlPullParserException;
 
 import java.io.BufferedInputStream;
+import java.io.ByteArrayInputStream;
+import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.io.InputStream;
-import java.io.PushbackInputStream;
 import java.net.HttpURLConnection;
 import java.text.SimpleDateFormat;
 import java.util.ArrayList;
@@ -27,13 +28,14 @@ public class RssFetcher {
     public static FeedResult fetchFeed(String feedUrl) throws Exception {
         try {
             return doFetch(feedUrl);
-        } catch (javax.net.ssl.SSLException | java.security.GeneralSecurityException sslErr) {
-            if (feedUrl.startsWith("https://")) {
+        } catch (Exception primaryErr) {
+            // If primary fetch failed (e.g. SSL or handshake error) and URL was HTTPS, try HTTP fallback
+            if (feedUrl != null && feedUrl.startsWith("https://")) {
                 try {
                     return doFetch(feedUrl.replaceFirst("^https://", "http://"));
                 } catch (Exception ignored) {}
             }
-            throw sslErr;
+            throw primaryErr;
         }
     }
 
@@ -51,86 +53,87 @@ public class RssFetcher {
         int code = conn.getResponseCode();
         if (code < 200 || code >= 300) {
             conn.disconnect();
-            throw new Exception("HTTP server response " + code);
+            throw new Exception("HTTP " + code);
         }
 
         String contentEncoding = conn.getContentEncoding();
+        String contentType = conn.getContentType();
         InputStream raw = new BufferedInputStream(conn.getInputStream(), 16384);
-        InputStream decompressed = handleGzip(raw, contentEncoding);
+        byte[] data = readAll(raw);
+        raw.close();
+        conn.disconnect();
 
-        FeedResult result;
-        try {
-            result = parseXmlStream(decompressed);
-        } finally {
-            try { decompressed.close(); } catch (Exception ignored) {}
-            conn.disconnect();
+        if (data == null || data.length == 0) {
+            throw new Exception("Empty feed response");
         }
 
-        return result;
+        // Automatic GZIP decompression: either by Content-Encoding header or magic bytes (0x1F, 0x8B)
+        boolean isGzip = (contentEncoding != null && contentEncoding.toLowerCase(Locale.ENGLISH).contains("gzip"))
+                || (data.length >= 2 && (data[0] & 0xFF) == 0x1F && (data[1] & 0xFF) == 0x8B);
+
+        if (isGzip) {
+            try {
+                GZIPInputStream gis = new GZIPInputStream(new ByteArrayInputStream(data));
+                data = readAll(gis);
+                gis.close();
+            } catch (Exception ignored) {}
+        }
+
+        // Strip UTF-8 BOM (0xEF, 0xBB, 0xBF) which breaks Android's XmlPullParser
+        if (data.length >= 3
+                && (data[0] & 0xFF) == 0xEF
+                && (data[1] & 0xFF) == 0xBB
+                && (data[2] & 0xFF) == 0xBF) {
+            byte[] stripped = new byte[data.length - 3];
+            System.arraycopy(data, 3, stripped, 0, stripped.length);
+            data = stripped;
+        }
+
+        String encoding = sniffEncoding(data, contentType);
+        return parseXml(new ByteArrayInputStream(data), encoding);
     }
 
-    /**
-     * Inspects the stream magic bytes to detect GZIP compression automatically.
-     */
-    private static InputStream handleGzip(InputStream in, String contentEncoding) throws IOException {
-        if ("gzip".equalsIgnoreCase(contentEncoding)) {
-            return new GZIPInputStream(in);
-        }
-        PushbackInputStream pb = new PushbackInputStream(in, 2);
-        byte[] head = new byte[2];
-        int read = pb.read(head);
-        if (read == 2) {
-            pb.unread(head);
-            // GZIP magic header: 0x1f 0x8b
-            if ((head[0] == (byte) 0x1f) && (head[1] == (byte) 0x8b)) {
-                return new GZIPInputStream(pb);
-            }
-        } else if (read > 0) {
-            pb.unread(head, 0, read);
-        }
-        return pb;
-    }
-
-    private static FeedResult parseXmlStream(InputStream in) throws Exception {
+    private static FeedResult parseXml(InputStream in, String encoding) throws Exception {
         FeedResult result = new FeedResult();
 
         XmlPullParser parser = Xml.newPullParser();
         parser.setFeature(XmlPullParser.FEATURE_PROCESS_NAMESPACES, false);
-        parser.setInput(in, null); // Auto-detect charset from XML declaration or UTF-8
+        try {
+            parser.setInput(in, encoding);
+        } catch (Exception e) {
+            parser.setInput(in, "UTF-8");
+        }
 
         Episode current = null;
         boolean inItem = false;
         boolean inChannelImage = false;
-        String currentTag = "";
-        final int MAX_EPISODES = 150; // Cap to keep BlackBerry Q5 fast and light on RAM
+        String tag = "";
+        final int MAX_EPISODES = 150;
 
         try {
             int eventType = parser.getEventType();
             while (eventType != XmlPullParser.END_DOCUMENT) {
 
                 if (eventType == XmlPullParser.START_TAG) {
-                    currentTag = normalizeTag(parser.getName());
+                    tag = normalizeTag(parser.getName());
 
-                    if (isItemTag(currentTag)) {
+                    if (isItemTag(tag)) {
                         inItem = true;
                         current = new Episode();
 
                     } else if (!inItem) {
-                        // Channel cover image
-                        if (currentTag.contains("image")) {
+                        // Channel cover image: <itunes:image href="...">, or <image><url>...</url></image>, or <logo>...</logo>
+                        if (tag.contains("image")) {
                             String href = parser.getAttributeValue(null, "href");
                             if (href != null && !href.trim().isEmpty()) {
                                 result.channelImageUrl = href.trim();
                             } else {
                                 inChannelImage = true;
                             }
-                        } else if ("logo".equals(currentTag)) {
-                            // Handled in TEXT
                         }
 
                     } else if (inItem && current != null) {
-                        // Episode enclosure
-                        if (currentTag.equals("enclosure") || currentTag.endsWith(":content") || currentTag.equals("content")) {
+                        if (tag.equals("enclosure") || tag.contains("content")) {
                             String url = parser.getAttributeValue(null, "url");
                             if (url == null) url = parser.getAttributeValue(null, "medium");
                             String type = parser.getAttributeValue(null, "type");
@@ -143,13 +146,13 @@ public class RssFetcher {
                                     current.audioUrl = url.trim();
                                 }
                             }
-                        } else if ("link".equals(currentTag)) {
+                        } else if (tag.equals("link")) {
                             String href = parser.getAttributeValue(null, "href");
                             String rel = parser.getAttributeValue(null, "rel");
                             if (href != null && ("enclosure".equals(rel) || href.contains(".mp3") || href.contains(".m4a"))) {
                                 if (current.audioUrl == null) current.audioUrl = href.trim();
                             }
-                        } else if (currentTag.contains("image")) {
+                        } else if (tag.contains("image")) {
                             String href = parser.getAttributeValue(null, "href");
                             if (href != null && !href.trim().isEmpty() && current.imageUrl == null) {
                                 current.imageUrl = href.trim();
@@ -166,7 +169,7 @@ public class RssFetcher {
                             }
                             result.episodes.add(current);
                             if (result.episodes.size() >= MAX_EPISODES) {
-                                break; // Loaded enough episodes for smooth browsing
+                                break;
                             }
                         }
                         inItem = false;
@@ -174,29 +177,33 @@ public class RssFetcher {
                     } else if (endTag.contains("image")) {
                         inChannelImage = false;
                     }
-                    currentTag = "";
+                    tag = "";
 
                 } else if (eventType == XmlPullParser.TEXT) {
                     String text = safeText(parser);
                     if (text != null && !text.isEmpty()) {
                         if (inItem && current != null) {
-                            if ("title".equals(currentTag) || currentTag.endsWith(":title")) {
+                            if (tag.equals("title") || tag.endsWith(":title")) {
                                 if (current.title == null) current.title = text;
-                            } else if ("guid".equals(currentTag) || "id".equals(currentTag) || currentTag.endsWith(":guid")) {
+                            } else if (tag.equals("guid") || tag.equals("id") || tag.endsWith(":guid")) {
                                 current.guid = text;
-                            } else if ("description".equals(currentTag) || currentTag.contains("summary") || currentTag.contains("encoded")) {
+                            } else if (tag.equals("description") || tag.contains("summary") || tag.contains("encoded")) {
                                 if (current.description == null) current.description = text;
-                            } else if ("pubdate".equals(currentTag) || "published".equals(currentTag) || "updated".equals(currentTag)) {
+                            } else if (tag.equals("pubdate") || tag.equals("published") || tag.equals("updated")) {
                                 current.pubDate = parseDate(text);
-                            } else if (currentTag.contains("duration")) {
+                            } else if (tag.contains("duration")) {
                                 current.durationSeconds = parseDuration(text);
-                            } else if (currentTag.contains("image") && current.imageUrl == null && (text.startsWith("http://") || text.startsWith("https://"))) {
+                            } else if (tag.contains("image") && current.imageUrl == null && (text.startsWith("http://") || text.startsWith("https://"))) {
                                 current.imageUrl = text;
                             }
                         } else if (!inItem) {
-                            if (("title".equals(currentTag) || currentTag.endsWith(":title")) && result.channelTitle == null) {
+                            if ((tag.equals("title") || tag.endsWith(":title")) && result.channelTitle == null) {
                                 result.channelTitle = text;
-                            } else if ((inChannelImage || "logo".equals(currentTag)) && result.channelImageUrl == null && (text.startsWith("http://") || text.startsWith("https://"))) {
+                            } else if ((tag.equals("description") || tag.contains("summary")) && result.channelDescription == null) {
+                                result.channelDescription = text;
+                            } else if (inChannelImage && tag.equals("url") && result.channelImageUrl == null) {
+                                result.channelImageUrl = text;
+                            } else if ((tag.equals("logo") || tag.contains("image")) && result.channelImageUrl == null && (text.startsWith("http://") || text.startsWith("https://"))) {
                                 result.channelImageUrl = text;
                             }
                         }
@@ -206,7 +213,6 @@ public class RssFetcher {
                 eventType = parser.next();
             }
         } catch (XmlPullParserException e) {
-            // Partial recovery: if we already parsed episodes, return them
             if (result.episodes.isEmpty()) throw e;
         }
 
@@ -229,6 +235,47 @@ public class RssFetcher {
         } catch (Exception e) {
             return null;
         }
+    }
+
+    private static byte[] readAll(InputStream in) throws IOException {
+        ByteArrayOutputStream buf = new ByteArrayOutputStream();
+        byte[] chunk = new byte[8192];
+        int n;
+        while ((n = in.read(chunk)) != -1) {
+            buf.write(chunk, 0, n);
+        }
+        return buf.toByteArray();
+    }
+
+    private static String sniffEncoding(byte[] data, String contentType) {
+        try {
+            int len = Math.min(data.length, 256);
+            String head = new String(data, 0, len, "US-ASCII");
+            int encStart = head.indexOf("encoding=\"");
+            if (encStart >= 0) {
+                int from = encStart + 10;
+                int to = head.indexOf('"', from);
+                if (to > from) return head.substring(from, to);
+            }
+            encStart = head.indexOf("encoding='");
+            if (encStart >= 0) {
+                int from = encStart + 10;
+                int to = head.indexOf('\'', from);
+                if (to > from) return head.substring(from, to);
+            }
+        } catch (Exception ignored) {}
+
+        if (contentType != null) {
+            int cs = contentType.toLowerCase(Locale.ENGLISH).indexOf("charset=");
+            if (cs >= 0) {
+                String enc = contentType.substring(cs + 8).trim();
+                int semi = enc.indexOf(';');
+                if (semi >= 0) enc = enc.substring(0, semi);
+                return enc.trim();
+            }
+        }
+
+        return "UTF-8";
     }
 
     private static long parseDate(String s) {
