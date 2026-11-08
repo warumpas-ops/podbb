@@ -29,17 +29,6 @@
             android:gravity="center_vertical" />
 
         <Button
-            android:id="@+id/btnHeaderTop"
-            android:layout_width="wrap_content"
-            android:layout_height="32dp"
-            android:text="[★ top 30]"
-            android:textColor="@color/bb_blue"
-            android:background="@null"
-            android:textSize="12sp"
-            android:paddingLeft="6dp"
-            android:paddingRight="6dp" />
-
-        <Button
             android:id="@+id/btnHeaderDownloads"
             android:layout_width="wrap_content"
             android:layout_height="32dp"
@@ -84,7 +73,7 @@
             android:imeOptions="actionSearch" />
     </LinearLayout>
 
-    <!-- Status / Section Header -->
+    <!-- Section Header -->
     <TextView
         android:id="@+id/tvSectionHeader"
         android:layout_width="match_parent"
@@ -114,7 +103,7 @@
             android:layout_width="match_parent"
             android:layout_height="match_parent"
             android:gravity="center"
-            android:text="[ no podcasts subscribed ]\n\ntype keywords above to search\nor tap [+ discover]"
+            android:text="[ no podcasts subscribed ]\n\ntype keywords above to search\nor paste an RSS feed url"
             android:textColor="@color/bb_text_dim"
             android:textSize="14sp"
             android:visibility="gone" />
@@ -189,7 +178,7 @@
         android:layout_height="1dp"
         android:background="@color/bb_border" />
 
-    <!-- Minimalist Bottom Action Bar (Exact NoteVault layout) -->
+    <!-- Minimalist Bottom Action Bar -->
     <LinearLayout
         android:id="@+id/bottomBar"
         android:layout_width="match_parent"
@@ -201,23 +190,11 @@
         android:paddingBottom="6dp">
 
         <Button
-            android:id="@+id/btnBottomDiscover"
-            android:layout_width="0dp"
-            android:layout_height="match_parent"
-            android:layout_weight="1"
-            android:text="[+ discover]"
-            android:textColor="@color/bb_text_white"
-            android:background="@drawable/btn_bb_action"
-            android:textSize="12sp"
-            android:layout_marginLeft="3dp"
-            android:layout_marginRight="3dp" />
-
-        <Button
             android:id="@+id/btnBottomDownloads"
             android:layout_width="0dp"
             android:layout_height="match_parent"
             android:layout_weight="1"
-            android:text="[↓ offline]"
+            android:text="[↓ offline downloads]"
             android:textColor="@color/bb_text_white"
             android:background="@drawable/btn_bb_action"
             android:textSize="12sp"
@@ -229,7 +206,7 @@
             android:layout_width="0dp"
             android:layout_height="match_parent"
             android:layout_weight="1"
-            android:text="[▶ player]"
+            android:text="[▶ now playing]"
             android:textColor="@color/bb_blue"
             android:background="@drawable/btn_bb_action"
             android:textSize="12sp"

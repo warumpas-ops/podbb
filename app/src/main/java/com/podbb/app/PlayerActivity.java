@@ -4,7 +4,6 @@ import android.app.Activity;
 import android.content.ComponentName;
 import android.content.Intent;
 import android.content.ServiceConnection;
-import android.graphics.Bitmap;
 import android.os.Bundle;
 import android.os.Handler;
 import android.os.IBinder;
@@ -42,7 +41,7 @@ public class PlayerActivity extends Activity {
             bound = true;
 
             Episode curr = playerService.getCurrentEpisode();
-            if (curr == null || curr.id != episodeId) {
+            if (curr == null || curr.id != episodeId || !playerService.isPrepared()) {
                 Episode ep = new Episode();
                 ep.id = episodeId;
                 ep.title = episodeTitle;
@@ -51,6 +50,7 @@ public class PlayerActivity extends Activity {
                 ep.durationSeconds = durationSeconds;
                 ep.positionSeconds = positionSeconds;
                 ep.podcastTitle = podcastTitle;
+                btnPlayPause.setText("[Connecting...]");
                 playerService.playEpisode(ep);
             }
             startSeekBarUpdate();
@@ -95,14 +95,8 @@ public class PlayerActivity extends Activity {
 
         updateSourceBadge();
 
-        if (artworkUrl != null && !artworkUrl.isEmpty()) {
-            new Thread(() -> {
-                Bitmap bmp = HttpHelper.fetchBitmap(artworkUrl, 160, 160);
-                if (bmp != null) {
-                    runOnUiThread(() -> imgArtwork.setImageBitmap(bmp));
-                }
-            }).start();
-        }
+        // Load cover artwork via high-speed disk/memory ImageLoader
+        ImageLoader.getInstance(this).displayImage(artworkUrl, imgArtwork, R.drawable.ic_launcher);
 
         if (durationSeconds > 0) {
             seekBar.setMax(durationSeconds * 1000);
@@ -111,8 +105,21 @@ public class PlayerActivity extends Activity {
 
         btnPlayPause.setOnClickListener(v -> {
             if (bound && playerService != null) {
-                playerService.togglePlayPause();
-                updatePlayPauseBtn();
+                if (!playerService.isPrepared()) {
+                    btnPlayPause.setText("[Connecting...]");
+                    Episode ep = new Episode();
+                    ep.id = episodeId;
+                    ep.title = episodeTitle;
+                    ep.audioUrl = audioUrl;
+                    ep.filePath = filePath;
+                    ep.durationSeconds = durationSeconds;
+                    ep.positionSeconds = positionSeconds;
+                    ep.podcastTitle = podcastTitle;
+                    playerService.playEpisode(ep);
+                } else {
+                    playerService.togglePlayPause();
+                    updatePlayPauseBtn();
+                }
             }
         });
 
@@ -170,7 +177,7 @@ public class PlayerActivity extends Activity {
                     runOnUiThread(() -> {
                         btnDownload.setText("[↓ download for offline playback]");
                         btnDownload.setEnabled(true);
-                        Toast.makeText(PlayerActivity.this, "Download note: " + error, Toast.LENGTH_SHORT).show();
+                        Toast.makeText(PlayerActivity.this, "Download error: " + error, Toast.LENGTH_SHORT).show();
                     });
                 }
             });
@@ -220,7 +227,11 @@ public class PlayerActivity extends Activity {
 
     private void updatePlayPauseBtn() {
         if (bound && playerService != null) {
-            btnPlayPause.setText(playerService.isPlaying() ? "[Pause]" : "[Play]");
+            if (!playerService.isPrepared()) {
+                btnPlayPause.setText("[Connecting...]");
+            } else {
+                btnPlayPause.setText(playerService.isPlaying() ? "[Pause]" : "[Play]");
+            }
         }
     }
 

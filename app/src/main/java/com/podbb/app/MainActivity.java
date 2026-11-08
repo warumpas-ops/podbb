@@ -8,12 +8,12 @@ import android.os.Bundle;
 import android.os.IBinder;
 import android.text.Editable;
 import android.text.TextWatcher;
-import android.view.KeyEvent;
 import android.view.View;
 import android.view.ViewGroup;
 import android.widget.BaseAdapter;
 import android.widget.Button;
 import android.widget.EditText;
+import android.widget.ImageView;
 import android.widget.LinearLayout;
 import android.widget.ListView;
 import android.widget.TextView;
@@ -25,8 +25,8 @@ public class MainActivity extends Activity {
     private final List<Podcast> displayedList = new ArrayList<>();
     private final List<Podcast> subscribedList = new ArrayList<>();
     private PodcastListAdapter adapter;
+    private ImageLoader imageLoader;
 
-    private TextView tvAppTitle;
     private TextView tvSectionHeader;
     private EditText etSearch;
     private ListView listPodcasts;
@@ -62,16 +62,14 @@ public class MainActivity extends Activity {
         super.onCreate(savedInstanceState);
         setContentView(R.layout.activity_main);
         db = new DatabaseHelper(this);
+        imageLoader = ImageLoader.getInstance(this);
 
-        tvAppTitle = (TextView) findViewById(R.id.tvAppTitle);
         tvSectionHeader = (TextView) findViewById(R.id.tvSectionHeader);
         etSearch = (EditText) findViewById(R.id.etSearch);
         listPodcasts = (ListView) findViewById(R.id.listPodcasts);
         tvEmpty = (TextView) findViewById(R.id.tvEmpty);
 
-        Button btnHeaderTop = (Button) findViewById(R.id.btnHeaderTop);
         Button btnHeaderDownloads = (Button) findViewById(R.id.btnHeaderDownloads);
-        Button btnBottomDiscover = (Button) findViewById(R.id.btnBottomDiscover);
         Button btnBottomDownloads = (Button) findViewById(R.id.btnBottomDownloads);
         Button btnBottomPlayer = (Button) findViewById(R.id.btnBottomPlayer);
 
@@ -83,13 +81,10 @@ public class MainActivity extends Activity {
         adapter = new PodcastListAdapter();
         listPodcasts.setAdapter(adapter);
 
-        // Header buttons
-        btnHeaderTop.setOnClickListener(v -> loadToplist());
-        btnHeaderDownloads.setOnClickListener(v -> startActivity(new Intent(MainActivity.this, DownloadsActivity.class)));
+        View.OnClickListener openDownloads = v -> startActivity(new Intent(MainActivity.this, DownloadsActivity.class));
+        btnHeaderDownloads.setOnClickListener(openDownloads);
+        btnBottomDownloads.setOnClickListener(openDownloads);
 
-        // Bottom action buttons
-        btnBottomDiscover.setOnClickListener(v -> loadToplist());
-        btnBottomDownloads.setOnClickListener(v -> startActivity(new Intent(MainActivity.this, DownloadsActivity.class)));
         btnBottomPlayer.setOnClickListener(v -> {
             Intent intent = new Intent(MainActivity.this, PlayerActivity.class);
             if (isBound && playerService != null && playerService.getCurrentEpisode() != null) {
@@ -105,7 +100,6 @@ public class MainActivity extends Activity {
             startActivity(intent);
         });
 
-        // Mini player click
         findViewById(R.id.miniPlayerClickArea).setOnClickListener(v -> btnBottomPlayer.performClick());
         btnMiniPlayPause.setOnClickListener(v -> {
             if (isBound && playerService != null) {
@@ -114,7 +108,6 @@ public class MainActivity extends Activity {
             }
         });
 
-        // Search input
         etSearch.setOnEditorActionListener((v, actionId, event) -> {
             String q = etSearch.getText().toString().trim();
             if (!q.isEmpty()) {
@@ -137,7 +130,6 @@ public class MainActivity extends Activity {
             public void afterTextChanged(Editable s) {}
         });
 
-        // Item click
         listPodcasts.setOnItemClickListener((parent, view, position, id) -> {
             Podcast p = displayedList.get(position);
             Intent intent = new Intent(MainActivity.this, PodcastDetailActivity.class);
@@ -151,7 +143,6 @@ public class MainActivity extends Activity {
             startActivity(intent);
         });
 
-        // Bind PlayerService
         Intent svcIntent = new Intent(this, PlayerService.class);
         bindService(svcIntent, serviceConn, BIND_AUTO_CREATE);
     }
@@ -177,7 +168,7 @@ public class MainActivity extends Activity {
 
         if (displayedList.isEmpty()) {
             tvEmpty.setVisibility(View.VISIBLE);
-            tvEmpty.setText("[ no podcasts subscribed ]\n\ntype keywords above to search\nor tap [+ discover]");
+            tvEmpty.setText("[ no podcasts subscribed ]\n\ntype keywords above to search\nor paste an RSS feed url");
         } else {
             tvEmpty.setVisibility(View.GONE);
         }
@@ -202,9 +193,9 @@ public class MainActivity extends Activity {
                     if (found.isEmpty()) {
                         tvSectionHeader.setText("NO RESULTS FOR \"" + query + "\"");
                         tvEmpty.setVisibility(View.VISIBLE);
-                        tvEmpty.setText("[ no podcasts found ]\n\ntry another keyword or paste RSS url");
+                        tvEmpty.setText("[ no podcasts found ]\n\ntry another keyword or paste direct RSS url");
                     } else {
-                        tvSectionHeader.setText("FOUND " + found.size() + " PODCASTS (tap to view)");
+                        tvSectionHeader.setText("SEARCH RESULTS (" + found.size() + ")");
                         tvEmpty.setVisibility(View.GONE);
                     }
                 });
@@ -215,34 +206,6 @@ public class MainActivity extends Activity {
                     tvEmpty.setText("[ search error: " + (e.getMessage() != null ? e.getMessage() : "offline") + " ]");
                 });
             }
-        }).start();
-    }
-
-    private void loadToplist() {
-        isSearching = true;
-        etSearch.setText("");
-        tvSectionHeader.setText("LOADING TOP PODCASTS...");
-        displayedList.clear();
-        adapter.notifyDataSetChanged();
-        tvEmpty.setVisibility(View.VISIBLE);
-        tvEmpty.setText("[ fetching top 30 podcasts... ]");
-
-        new Thread(() -> {
-            final List<Podcast> top = PodcastSearchEngine.getToplist();
-            runOnUiThread(() -> {
-                displayedList.clear();
-                displayedList.addAll(top);
-                adapter.notifyDataSetChanged();
-
-                if (top.isEmpty()) {
-                    tvSectionHeader.setText("TOP PODCASTS UNAVAILABLE");
-                    tvEmpty.setVisibility(View.VISIBLE);
-                    tvEmpty.setText("[ could not load top podcasts ]\ncheck network connection");
-                } else {
-                    tvSectionHeader.setText("TOP 30 DISCOVER PODCASTS");
-                    tvEmpty.setVisibility(View.GONE);
-                }
-            });
         }).start();
     }
 
@@ -272,19 +235,21 @@ public class MainActivity extends Activity {
                 convertView = getLayoutInflater().inflate(R.layout.item_podcast, parent, false);
             }
             Podcast p = displayedList.get(position);
+            ImageView imgCoverThumb = (ImageView) convertView.findViewById(R.id.imgCoverThumb);
             TextView tvTypeTag = (TextView) convertView.findViewById(R.id.tvTypeTag);
             TextView tvTitle = (TextView) convertView.findViewById(R.id.tvTitle);
-            TextView tvDate = (TextView) convertView.findViewById(R.id.tvDate);
             TextView tvPreview = (TextView) convertView.findViewById(R.id.tvPreview);
             TextView tvCategory = (TextView) convertView.findViewById(R.id.tvCategory);
 
             tvTypeTag.setText(p.isSubscribed ? "[saved]" : "[pod]");
             tvTitle.setText(p.title);
-            tvDate.setText(p.author != null && !p.author.isEmpty() ? p.author : "Creator");
             
-            String desc = p.description != null && !p.description.isEmpty() ? p.description.replaceAll("<[^>]*>", "").trim() : "Podcast feed";
-            tvPreview.setText(desc);
-            tvCategory.setText(p.isSubscribed ? "✓ Subscribed" : "[tap to view episodes]");
+            String creatorOrDesc = p.author != null && !p.author.isEmpty() ? p.author : (p.description != null ? p.description : "Podcast");
+            tvPreview.setText(creatorOrDesc.replaceAll("<[^>]*>", "").trim());
+            tvCategory.setText(p.isSubscribed ? "✓ Subscribed" : "[tap to view]");
+
+            // Load cover picture asynchronously
+            imageLoader.displayImage(p.imageUrl, imgCoverThumb, R.drawable.ic_launcher);
 
             return convertView;
         }

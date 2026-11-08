@@ -7,6 +7,7 @@ import android.view.View;
 import android.view.ViewGroup;
 import android.widget.BaseAdapter;
 import android.widget.Button;
+import android.widget.ImageView;
 import android.widget.ListView;
 import android.widget.TextView;
 import java.util.ArrayList;
@@ -19,6 +20,8 @@ public class PodcastDetailActivity extends Activity {
     private EpisodeAdapter adapter;
     private Button btnSubscribe;
     private TextView tvEpisodesStatus;
+    private ImageView imgPodcastCover;
+    private ImageLoader imageLoader;
     private boolean isSubscribed = false;
 
     @Override
@@ -26,12 +29,13 @@ public class PodcastDetailActivity extends Activity {
         super.onCreate(savedInstanceState);
         setContentView(R.layout.activity_podcast_detail);
         db = new DatabaseHelper(this);
+        imageLoader = ImageLoader.getInstance(this);
 
         final String title = getIntent().getStringExtra("podcast_title");
         final String author = getIntent().getStringExtra("podcast_author");
         final String feedUrl = getIntent().getStringExtra("feed_url");
         final String itunesId = getIntent().getStringExtra("itunes_id");
-        final String imageUrl = getIntent().getStringExtra("image_url");
+        String imageUrl = getIntent().getStringExtra("image_url");
         final String description = getIntent().getStringExtra("description");
         final long podcastId = getIntent().getLongExtra("podcast_id", -1);
 
@@ -52,6 +56,7 @@ public class PodcastDetailActivity extends Activity {
 
         btnSubscribe = (Button) findViewById(R.id.btnSubscribe);
         tvEpisodesStatus = (TextView) findViewById(R.id.tvEpisodesStatus);
+        imgPodcastCover = (ImageView) findViewById(R.id.imgPodcastCover);
 
         // Determine subscription state
         if (podcastId != -1) {
@@ -63,11 +68,17 @@ public class PodcastDetailActivity extends Activity {
             if (existing != null) {
                 podcast = existing;
                 isSubscribed = true;
+                if (podcast.imageUrl != null && !podcast.imageUrl.isEmpty()) {
+                    imageUrl = podcast.imageUrl;
+                }
             } else {
                 podcast = new Podcast(title, author, description != null ? description : "", imageUrl != null ? imageUrl : "", feedUrl, itunesId);
                 isSubscribed = false;
             }
         }
+
+        // Load cover art instantly from cache/disk
+        imageLoader.displayImage(imageUrl, imgPodcastCover, R.drawable.ic_launcher);
 
         updateSubscribeButton();
 
@@ -90,11 +101,6 @@ public class PodcastDetailActivity extends Activity {
 
         listEpisodes.setOnItemClickListener((parent, view, position, id) -> {
             Episode ep = episodes.get(position);
-            if (isSubscribed && ep.id == 0) {
-                db.upsertEpisodes(podcast.id, episodes);
-                List<Episode> saved = db.getEpisodesForPodcast(podcast.id);
-                if (position < saved.size()) ep = saved.get(position);
-            }
             Intent intent = new Intent(PodcastDetailActivity.this, PlayerActivity.class);
             intent.putExtra("episode_id", ep.id);
             intent.putExtra("episode_title", ep.title);
@@ -103,9 +109,16 @@ public class PodcastDetailActivity extends Activity {
             intent.putExtra("episode_duration", ep.durationSeconds);
             intent.putExtra("episode_position", ep.positionSeconds);
             intent.putExtra("podcast_title", title);
-            intent.putExtra("podcast_artwork", imageUrl);
+            intent.putExtra("podcast_artwork", podcast.imageUrl);
             intent.putExtra("podcast_feed_url", feedUrl);
             startActivity(intent);
+
+            // Save state in background
+            if (isSubscribed && ep.id == 0) {
+                new Thread(() -> {
+                    db.upsertEpisodes(podcast.id, episodes);
+                }).start();
+            }
         });
 
         loadEpisodes(feedUrl, podcastId);
@@ -115,9 +128,16 @@ public class PodcastDetailActivity extends Activity {
         tvEpisodesStatus.setText("Fetching feed...");
         new Thread(() -> {
             try {
-                final List<Episode> fetched = RssFetcher.fetch(feedUrl);
+                final RssFetcher.FeedResult feed = RssFetcher.fetchFeed(feedUrl);
+
+                // If feed provided a channel artwork and we don't have one, update it!
+                if (feed.channelImageUrl != null && !feed.channelImageUrl.isEmpty()) {
+                    podcast.imageUrl = feed.channelImageUrl;
+                    runOnUiThread(() -> imageLoader.displayImage(feed.channelImageUrl, imgPodcastCover, R.drawable.ic_launcher));
+                }
+
                 if (isSubscribed && podcast.id > 0) {
-                    db.upsertEpisodes(podcast.id, fetched);
+                    db.upsertEpisodes(podcast.id, feed.episodes);
                     final List<Episode> saved = db.getEpisodesForPodcast(podcast.id);
                     runOnUiThread(() -> {
                         episodes.clear();
@@ -128,13 +148,13 @@ public class PodcastDetailActivity extends Activity {
                 } else {
                     runOnUiThread(() -> {
                         episodes.clear();
-                        episodes.addAll(fetched);
+                        episodes.addAll(feed.episodes);
                         adapter.notifyDataSetChanged();
-                        tvEpisodesStatus.setText(fetched.size() + " episodes");
+                        tvEpisodesStatus.setText(feed.episodes.size() + " episodes");
                     });
                 }
             } catch (Exception e) {
-                runOnUiThread(() -> tvEpisodesStatus.setText("Feed error: " + (e.getMessage() != null ? e.getMessage() : "offline")));
+                runOnUiThread(() -> tvEpisodesStatus.setText("Feed note: " + (e.getMessage() != null ? e.getMessage() : "offline")));
             }
         }).start();
     }

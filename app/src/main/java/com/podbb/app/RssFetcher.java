@@ -12,11 +12,17 @@ import java.util.Locale;
 
 public class RssFetcher {
 
-    public static List<Episode> fetch(String feedUrl) throws Exception {
+    public static class FeedResult {
+        public String channelTitle;
+        public String channelDescription;
+        public String channelImageUrl;
+        public List<Episode> episodes = new ArrayList<>();
+    }
+
+    public static FeedResult fetchFeed(String feedUrl) throws Exception {
         try {
             return doFetch(feedUrl);
         } catch (javax.net.ssl.SSLException | java.security.GeneralSecurityException sslErr) {
-            // Fallback: Try HTTP version if HTTPS failed with SSL error on BB10
             if (feedUrl.startsWith("https://")) {
                 String httpUrl = feedUrl.replaceFirst("^https://", "http://");
                 try {
@@ -27,8 +33,12 @@ public class RssFetcher {
         }
     }
 
-    private static List<Episode> doFetch(String feedUrl) throws Exception {
-        List<Episode> episodes = new ArrayList<>();
+    public static List<Episode> fetch(String feedUrl) throws Exception {
+        return fetchFeed(feedUrl).episodes;
+    }
+
+    private static FeedResult doFetch(String feedUrl) throws Exception {
+        FeedResult result = new FeedResult();
         HttpURLConnection conn = HttpHelper.openWithRedirects(feedUrl);
         InputStream in = conn.getInputStream();
 
@@ -37,6 +47,7 @@ public class RssFetcher {
 
         Episode current = null;
         boolean inItem = false;
+        boolean inChannelImage = false;
         String tag = "";
 
         int eventType = parser.getEventType();
@@ -46,42 +57,60 @@ public class RssFetcher {
                 if ("item".equals(tag)) {
                     inItem = true;
                     current = new Episode();
+                } else if (!inItem && ("itunes:image".equals(tag) || "image".equals(tag))) {
+                    String href = parser.getAttributeValue(null, "href");
+                    if (href != null && !href.isEmpty()) {
+                        result.channelImageUrl = href.trim();
+                    } else if ("image".equals(tag)) {
+                        inChannelImage = true;
+                    }
                 } else if (inItem && "enclosure".equals(tag)) {
                     String type = parser.getAttributeValue(null, "type");
                     String url = parser.getAttributeValue(null, "url");
                     if (url != null && !url.isEmpty()) {
                         if (type == null || type.startsWith("audio") || url.contains(".mp3") || url.contains(".m4a")) {
-                            current.audioUrl = url;
+                            current.audioUrl = url.trim();
                         }
                     }
                 }
             } else if (eventType == XmlPullParser.END_TAG) {
-                if ("item".equals(parser.getName())) {
+                String endTag = parser.getName();
+                if ("item".equals(endTag)) {
                     if (current != null && current.audioUrl != null && !current.audioUrl.isEmpty()) {
                         if (current.title == null || current.title.isEmpty()) {
                             current.title = "Untitled Episode";
                         }
-                        episodes.add(current);
+                        result.episodes.add(current);
                     }
                     inItem = false;
                     current = null;
+                } else if ("image".equals(endTag)) {
+                    inChannelImage = false;
                 }
                 tag = "";
-            } else if (eventType == XmlPullParser.TEXT && inItem && current != null) {
+            } else if (eventType == XmlPullParser.TEXT) {
                 String text = parser.getText();
                 if (text != null) {
                     text = text.trim();
                     if (!text.isEmpty()) {
-                        if ("title".equals(tag)) {
-                            current.title = text;
-                        } else if ("guid".equals(tag)) {
-                            current.guid = text;
-                        } else if ("description".equals(tag) || "content:encoded".equals(tag)) {
-                            if (current.description == null) current.description = text;
-                        } else if ("pubDate".equals(tag)) {
-                            current.pubDate = parseDate(text);
-                        } else if ("itunes:duration".equals(tag)) {
-                            current.durationSeconds = parseDuration(text);
+                        if (inItem && current != null) {
+                            if ("title".equals(tag)) {
+                                current.title = text;
+                            } else if ("guid".equals(tag)) {
+                                current.guid = text;
+                            } else if ("description".equals(tag) || "content:encoded".equals(tag)) {
+                                if (current.description == null) current.description = text;
+                            } else if ("pubDate".equals(tag)) {
+                                current.pubDate = parseDate(text);
+                            } else if ("itunes:duration".equals(tag)) {
+                                current.durationSeconds = parseDuration(text);
+                            }
+                        } else if (!inItem) {
+                            if ("title".equals(tag) && result.channelTitle == null) {
+                                result.channelTitle = text;
+                            } else if (inChannelImage && "url".equals(tag)) {
+                                result.channelImageUrl = text;
+                            }
                         }
                     }
                 }
@@ -90,7 +119,7 @@ public class RssFetcher {
         }
         in.close();
         conn.disconnect();
-        return episodes;
+        return result;
     }
 
     private static long parseDate(String s) {
