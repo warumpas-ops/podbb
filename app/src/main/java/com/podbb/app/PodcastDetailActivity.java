@@ -126,35 +126,68 @@ public class PodcastDetailActivity extends Activity {
 
     private void loadEpisodes(final String feedUrl, final long podcastId) {
         tvEpisodesStatus.setText("Fetching feed...");
-        new Thread(() -> {
-            try {
-                final RssFetcher.FeedResult feed = RssFetcher.fetchFeed(feedUrl);
+        new Thread(new Runnable() {
+            @Override
+            public void run() {
+                try {
+                    final RssFetcher.FeedResult feed = RssFetcher.fetchFeed(feedUrl);
 
-                // If feed provided a channel artwork and we don't have one, update it!
-                if (feed.channelImageUrl != null && !feed.channelImageUrl.isEmpty()) {
-                    podcast.imageUrl = feed.channelImageUrl;
-                    runOnUiThread(() -> imageLoader.displayImage(feed.channelImageUrl, imgPodcastCover, R.drawable.ic_launcher));
-                }
+                    // Update cover: prefer RSS channelImageUrl, fall back to what we already have
+                    if (feed.channelImageUrl != null && !feed.channelImageUrl.isEmpty()) {
+                        if (podcast.imageUrl == null || podcast.imageUrl.isEmpty()) {
+                            podcast.imageUrl = feed.channelImageUrl;
+                        }
+                        // Show RSS cover (may be higher quality than gpodder thumbnail)
+                        final String rssImg = feed.channelImageUrl;
+                        runOnUiThread(new Runnable() {
+                            @Override
+                            public void run() {
+                                imageLoader.displayImage(rssImg, imgPodcastCover, R.drawable.ic_launcher);
+                            }
+                        });
+                    } else if (podcast.imageUrl != null && !podcast.imageUrl.isEmpty()) {
+                        // Keep showing the gpodder logo we already loaded
+                        final String existingImg = podcast.imageUrl;
+                        runOnUiThread(new Runnable() {
+                            @Override
+                            public void run() {
+                                imageLoader.displayImage(existingImg, imgPodcastCover, R.drawable.ic_launcher);
+                            }
+                        });
+                    }
 
-                if (isSubscribed && podcast.id > 0) {
-                    db.upsertEpisodes(podcast.id, feed.episodes);
-                    final List<Episode> saved = db.getEpisodesForPodcast(podcast.id);
-                    runOnUiThread(() -> {
-                        episodes.clear();
-                        episodes.addAll(saved);
-                        adapter.notifyDataSetChanged();
-                        tvEpisodesStatus.setText(saved.size() + " episodes");
-                    });
-                } else {
-                    runOnUiThread(() -> {
-                        episodes.clear();
-                        episodes.addAll(feed.episodes);
-                        adapter.notifyDataSetChanged();
-                        tvEpisodesStatus.setText(feed.episodes.size() + " episodes");
+                    if (isSubscribed && podcast.id > 0) {
+                        db.upsertEpisodes(podcast.id, feed.episodes);
+                        final List<Episode> saved = db.getEpisodesForPodcast(podcast.id);
+                        runOnUiThread(new Runnable() {
+                            @Override
+                            public void run() {
+                                episodes.clear();
+                                episodes.addAll(saved);
+                                adapter.notifyDataSetChanged();
+                                tvEpisodesStatus.setText(saved.size() + " episodes");
+                            }
+                        });
+                    } else {
+                        runOnUiThread(new Runnable() {
+                            @Override
+                            public void run() {
+                                episodes.clear();
+                                episodes.addAll(feed.episodes);
+                                adapter.notifyDataSetChanged();
+                                tvEpisodesStatus.setText(feed.episodes.size() + " episodes");
+                            }
+                        });
+                    }
+                } catch (Exception e) {
+                    final String msg = e.getMessage() != null ? e.getMessage() : "offline";
+                    runOnUiThread(new Runnable() {
+                        @Override
+                        public void run() {
+                            tvEpisodesStatus.setText("Feed error: " + msg);
+                        }
                     });
                 }
-            } catch (Exception e) {
-                runOnUiThread(() -> tvEpisodesStatus.setText("Feed note: " + (e.getMessage() != null ? e.getMessage() : "offline")));
             }
         }).start();
     }
