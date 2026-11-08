@@ -95,10 +95,9 @@ public class PlayerActivity extends Activity {
 
         updateSourceBadge();
 
-        // Load artwork
         if (artworkUrl != null && !artworkUrl.isEmpty()) {
             new Thread(() -> {
-                Bitmap bmp = HttpHelper.fetchBitmap(artworkUrl, 256, 256);
+                Bitmap bmp = HttpHelper.fetchBitmap(artworkUrl, 160, 160);
                 if (bmp != null) {
                     runOnUiThread(() -> imgArtwork.setImageBitmap(bmp));
                 }
@@ -169,9 +168,9 @@ public class PlayerActivity extends Activity {
                 @Override
                 public void onError(final String error) {
                     runOnUiThread(() -> {
-                        btnDownload.setText("[ Download Episode for Offline ]");
+                        btnDownload.setText("[↓ download for offline playback]");
                         btnDownload.setEnabled(true);
-                        Toast.makeText(PlayerActivity.this, "Download error: " + error, Toast.LENGTH_SHORT).show();
+                        Toast.makeText(PlayerActivity.this, "Download note: " + error, Toast.LENGTH_SHORT).show();
                     });
                 }
             });
@@ -189,8 +188,8 @@ public class PlayerActivity extends Activity {
             btnDownload.setText("✓ Downloaded Offline");
         } else {
             tvSourceBadge.setText("[STREAMING]");
-            tvSourceBadge.setTextColor(0xFF808086);
-            btnDownload.setText("[ Download Episode for Offline ]");
+            tvSourceBadge.setTextColor(0xFF888888);
+            btnDownload.setText("[↓ download for offline playback]");
         }
     }
 
@@ -215,13 +214,13 @@ public class PlayerActivity extends Activity {
         float[] speeds = {0.75f, 1.0f, 1.25f, 1.5f, 2.0f};
         for (int i = 0; i < ids.length; i++) {
             Button btn = (Button) findViewById(ids[i]);
-            btn.setTextColor(speeds[i] == currentSpeed ? 0xFF00A8DF : 0xFF808086);
+            btn.setTextColor(speeds[i] == currentSpeed ? 0xFF00A8DF : 0xFF888888);
         }
     }
 
     private void updatePlayPauseBtn() {
         if (bound && playerService != null) {
-            btnPlayPause.setText(playerService.isPlaying() ? "Pause" : "Play");
+            btnPlayPause.setText(playerService.isPlaying() ? "[Pause]" : "[Play]");
         }
     }
 

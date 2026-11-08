@@ -3,10 +3,9 @@ package com.podbb.app;
 import android.app.Activity;
 import android.content.Intent;
 import android.os.Bundle;
-import android.view.KeyEvent;
 import android.view.View;
-import android.widget.AdapterView;
-import android.widget.ArrayAdapter;
+import android.view.ViewGroup;
+import android.widget.BaseAdapter;
 import android.widget.Button;
 import android.widget.EditText;
 import android.widget.ListView;
@@ -18,9 +17,8 @@ public class SearchActivity extends Activity {
     private EditText etSearch;
     private ListView listResults;
     private TextView tvStatus;
-    private Button btnDoSearch;
     private final List<Podcast> results = new ArrayList<>();
-    private ArrayAdapter<Podcast> adapter;
+    private ResultAdapter adapter;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -30,16 +28,13 @@ public class SearchActivity extends Activity {
         etSearch = (EditText) findViewById(R.id.etSearch);
         listResults = (ListView) findViewById(R.id.listResults);
         tvStatus = (TextView) findViewById(R.id.tvStatus);
-        btnDoSearch = (Button) findViewById(R.id.btnDoSearch);
-
+        Button btnDoSearch = (Button) findViewById(R.id.btnDoSearch);
         Button btnBack = (Button) findViewById(R.id.btnBack);
-        btnBack.setOnClickListener(v -> finish());
 
+        btnBack.setOnClickListener(v -> finish());
         btnDoSearch.setOnClickListener(v -> {
             String q = etSearch.getText().toString().trim();
-            if (!q.isEmpty()) {
-                doSearch(q);
-            }
+            if (!q.isEmpty()) doSearch(q);
         });
 
         etSearch.setOnEditorActionListener((v, actionId, event) -> {
@@ -51,24 +46,7 @@ public class SearchActivity extends Activity {
             return false;
         });
 
-        setupList();
-
-        // Load initial popular podcasts
-        loadInitialDiscover();
-    }
-
-    private void setupList() {
-        adapter = new ArrayAdapter<Podcast>(this, R.layout.item_search_result, R.id.tvTitle, results) {
-            @Override
-            public View getView(int position, View convertView, android.view.ViewGroup parent) {
-                View v = super.getView(position, convertView, parent);
-                Podcast p = results.get(position);
-                ((TextView) v.findViewById(R.id.tvTitle)).setText(p.title);
-                ((TextView) v.findViewById(R.id.tvAuthor)).setText(p.author != null && !p.author.isEmpty() ? p.author : "Podcast");
-                ((TextView) v.findViewById(R.id.tvGenre)).setText(p.description != null && !p.description.isEmpty() ? p.description : "Top Show");
-                return v;
-            }
-        };
+        adapter = new ResultAdapter();
         listResults.setAdapter(adapter);
 
         listResults.setOnItemClickListener((parent, view, position, id) -> {
@@ -82,23 +60,21 @@ public class SearchActivity extends Activity {
             intent.putExtra("description", p.description);
             startActivity(intent);
         });
+
+        // Load top podcasts by default
+        loadInitial();
     }
 
-    private void loadInitialDiscover() {
-        tvStatus.setText("Loading featured podcasts...");
+    private void loadInitial() {
+        tvStatus.setText("Loading popular podcasts...");
         new Thread(() -> {
-            try {
-                final List<Podcast> popular = ItunesApi.search("news");
-                runOnUiThread(() -> {
-                    if (results.isEmpty() && !popular.isEmpty()) {
-                        results.addAll(popular);
-                        adapter.notifyDataSetChanged();
-                        tvStatus.setText("Featured Podcasts (type above to search)");
-                    }
-                });
-            } catch (Exception e) {
-                runOnUiThread(() -> tvStatus.setText("Type keywords above to search iTunes directory"));
-            }
+            final List<Podcast> top = PodcastSearchEngine.getToplist();
+            runOnUiThread(() -> {
+                results.clear();
+                results.addAll(top);
+                adapter.notifyDataSetChanged();
+                tvStatus.setText("Top Podcasts (or type above to search)");
+            });
         }).start();
     }
 
@@ -109,22 +85,46 @@ public class SearchActivity extends Activity {
 
         new Thread(() -> {
             try {
-                final List<Podcast> found = ItunesApi.search(query);
+                final List<Podcast> found = PodcastSearchEngine.search(query);
                 runOnUiThread(() -> {
+                    results.clear();
                     results.addAll(found);
                     adapter.notifyDataSetChanged();
                     if (found.isEmpty()) {
                         tvStatus.setText("No podcasts found for \"" + query + "\"");
                     } else {
-                        tvStatus.setText("Found " + found.size() + " podcasts for \"" + query + "\"");
+                        tvStatus.setText("Found " + found.size() + " podcasts");
                     }
                 });
             } catch (final Exception e) {
-                runOnUiThread(() -> {
-                    String msg = e.getMessage() != null ? e.getMessage() : "Check internet connection";
-                    tvStatus.setText("Search error: " + msg);
-                });
+                runOnUiThread(() -> tvStatus.setText("Search error: " + e.getMessage()));
             }
         }).start();
+    }
+
+    private class ResultAdapter extends BaseAdapter {
+        @Override
+        public int getCount() { return results.size(); }
+        @Override
+        public Object getItem(int position) { return results.get(position); }
+        @Override
+        public long getItemId(int position) { return position; }
+
+        @Override
+        public View getView(int position, View convertView, ViewGroup parent) {
+            if (convertView == null) {
+                convertView = getLayoutInflater().inflate(R.layout.item_search_result, parent, false);
+            }
+            Podcast p = results.get(position);
+            TextView tvTitle = (TextView) convertView.findViewById(R.id.tvTitle);
+            TextView tvAuthor = (TextView) convertView.findViewById(R.id.tvAuthor);
+            TextView tvGenre = (TextView) convertView.findViewById(R.id.tvGenre);
+
+            tvTitle.setText(p.title);
+            tvAuthor.setText(p.author != null && !p.author.isEmpty() ? p.author : "Creator");
+            tvGenre.setText(p.description != null && !p.description.isEmpty() ? p.description.replaceAll("<[^>]*>", "").trim() : "Podcast");
+
+            return convertView;
+        }
     }
 }

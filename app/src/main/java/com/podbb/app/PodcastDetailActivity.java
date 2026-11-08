@@ -2,12 +2,11 @@ package com.podbb.app;
 
 import android.app.Activity;
 import android.content.Intent;
-import android.graphics.Bitmap;
 import android.os.Bundle;
 import android.view.View;
-import android.widget.ArrayAdapter;
+import android.view.ViewGroup;
+import android.widget.BaseAdapter;
 import android.widget.Button;
-import android.widget.ImageView;
 import android.widget.ListView;
 import android.widget.TextView;
 import java.util.ArrayList;
@@ -17,10 +16,9 @@ public class PodcastDetailActivity extends Activity {
     private DatabaseHelper db;
     private Podcast podcast;
     private final List<Episode> episodes = new ArrayList<>();
-    private ArrayAdapter<Episode> adapter;
+    private EpisodeAdapter adapter;
     private Button btnSubscribe;
     private TextView tvEpisodesStatus;
-    private ImageView imgPodcastCover;
     private boolean isSubscribed = false;
 
     @Override
@@ -50,21 +48,10 @@ public class PodcastDetailActivity extends Activity {
         tvAuthor.setText(author != null && !author.isEmpty() ? author : "Creator");
 
         TextView tvGenrePill = (TextView) findViewById(R.id.tvGenrePill);
-        tvGenrePill.setText(description != null && !description.isEmpty() ? description : "Podcast");
+        tvGenrePill.setText(description != null && !description.isEmpty() ? description.replaceAll("<[^>]*>", "").trim() : "Podcast");
 
         btnSubscribe = (Button) findViewById(R.id.btnSubscribe);
         tvEpisodesStatus = (TextView) findViewById(R.id.tvEpisodesStatus);
-        imgPodcastCover = (ImageView) findViewById(R.id.imgPodcastCover);
-
-        // Load cover art asynchronously
-        if (imageUrl != null && !imageUrl.isEmpty()) {
-            new Thread(() -> {
-                Bitmap bmp = HttpHelper.fetchBitmap(imageUrl, 128, 128);
-                if (bmp != null) {
-                    runOnUiThread(() -> imgPodcastCover.setImageBitmap(bmp));
-                }
-            }).start();
-        }
 
         // Determine subscription state
         if (podcastId != -1) {
@@ -72,7 +59,7 @@ public class PodcastDetailActivity extends Activity {
             podcast.id = podcastId;
             isSubscribed = true;
         } else {
-            Podcast existing = db.getPodcastByItunesId(itunesId);
+            Podcast existing = db.getPodcastByItunesId(itunesId != null ? itunesId : String.valueOf(feedUrl.hashCode()));
             if (existing != null) {
                 podcast = existing;
                 isSubscribed = true;
@@ -98,29 +85,7 @@ public class PodcastDetailActivity extends Activity {
         });
 
         ListView listEpisodes = (ListView) findViewById(R.id.listEpisodes);
-        adapter = new ArrayAdapter<Episode>(this, R.layout.item_episode, R.id.tvTitle, episodes) {
-            @Override
-            public View getView(int pos, View convertView, android.view.ViewGroup parent) {
-                View v = super.getView(pos, convertView, parent);
-                Episode e = episodes.get(pos);
-                ((TextView) v.findViewById(R.id.tvTitle)).setText(e.title);
-                String dur = e.getFormattedDuration();
-                ((TextView) v.findViewById(R.id.tvDuration)).setText(!dur.isEmpty() ? dur : "Audio");
-                
-                TextView tvStatus = (TextView) v.findViewById(R.id.tvStatus);
-                if (e.downloaded) {
-                    tvStatus.setText("[downloaded]");
-                    tvStatus.setTextColor(0xFF00A8DF);
-                } else if (e.listened) {
-                    tvStatus.setText("[listened]");
-                    tvStatus.setTextColor(0xFF808086);
-                } else {
-                    tvStatus.setText("[stream]");
-                    tvStatus.setTextColor(0xFF808086);
-                }
-                return v;
-            }
-        };
+        adapter = new EpisodeAdapter();
         listEpisodes.setAdapter(adapter);
 
         listEpisodes.setOnItemClickListener((parent, view, position, id) -> {
@@ -177,12 +142,49 @@ public class PodcastDetailActivity extends Activity {
     private void updateSubscribeButton() {
         if (isSubscribed) {
             btnSubscribe.setText("✓ Subscribed");
-            btnSubscribe.setBackgroundResource(R.drawable.btn_action);
+            btnSubscribe.setBackgroundResource(R.drawable.btn_bb_action);
             btnSubscribe.setTextColor(0xFF00A8DF);
         } else {
             btnSubscribe.setText("+ Subscribe");
-            btnSubscribe.setBackgroundResource(R.drawable.btn_accent);
-            btnSubscribe.setTextColor(0xFFF2F2F2);
+            btnSubscribe.setBackgroundResource(R.drawable.btn_bb_action);
+            btnSubscribe.setTextColor(0xFFF5F5F5);
+        }
+    }
+
+    private class EpisodeAdapter extends BaseAdapter {
+        @Override
+        public int getCount() { return episodes.size(); }
+        @Override
+        public Object getItem(int position) { return episodes.get(position); }
+        @Override
+        public long getItemId(int position) { return position; }
+
+        @Override
+        public View getView(int position, View convertView, ViewGroup parent) {
+            if (convertView == null) {
+                convertView = getLayoutInflater().inflate(R.layout.item_episode, parent, false);
+            }
+            Episode ep = episodes.get(position);
+            TextView tvTitle = (TextView) convertView.findViewById(R.id.tvTitle);
+            TextView tvDuration = (TextView) convertView.findViewById(R.id.tvDuration);
+            TextView tvStatus = (TextView) convertView.findViewById(R.id.tvStatus);
+
+            tvTitle.setText(ep.title);
+            String dur = ep.getFormattedDuration();
+            tvDuration.setText(!dur.isEmpty() ? dur : "Audio Episode");
+
+            if (ep.downloaded) {
+                tvStatus.setText("[offline]");
+                tvStatus.setTextColor(0xFF00A8DF);
+            } else if (ep.listened) {
+                tvStatus.setText("[done]");
+                tvStatus.setTextColor(0xFF888888);
+            } else {
+                tvStatus.setText("[stream]");
+                tvStatus.setTextColor(0xFF888888);
+            }
+
+            return convertView;
         }
     }
 

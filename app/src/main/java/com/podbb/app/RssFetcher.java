@@ -13,6 +13,21 @@ import java.util.Locale;
 public class RssFetcher {
 
     public static List<Episode> fetch(String feedUrl) throws Exception {
+        try {
+            return doFetch(feedUrl);
+        } catch (javax.net.ssl.SSLException | java.security.GeneralSecurityException sslErr) {
+            // Fallback: Try HTTP version if HTTPS failed with SSL error on BB10
+            if (feedUrl.startsWith("https://")) {
+                String httpUrl = feedUrl.replaceFirst("^https://", "http://");
+                try {
+                    return doFetch(httpUrl);
+                } catch (Exception ignored) {}
+            }
+            throw sslErr;
+        }
+    }
+
+    private static List<Episode> doFetch(String feedUrl) throws Exception {
         List<Episode> episodes = new ArrayList<>();
         HttpURLConnection conn = HttpHelper.openWithRedirects(feedUrl);
         InputStream in = conn.getInputStream();
