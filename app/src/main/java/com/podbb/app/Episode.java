@@ -14,6 +14,7 @@ public class Episode {
     public boolean listened;
     public int positionSeconds;
     public String podcastTitle; // transient, for display
+    public String imageUrl;     // transient, episode-level art (itunes:image)
 
     public Episode() {}
 

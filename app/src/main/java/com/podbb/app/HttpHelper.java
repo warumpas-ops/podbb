@@ -132,12 +132,18 @@ public class HttpHelper {
     }
 
     public static HttpURLConnection openWithRedirects(String urlStr) throws Exception {
+        return openWithRedirects(urlStr, null, null);
+    }
+
+    public static HttpURLConnection openWithRedirects(String urlStr, String acceptHeader, String extraUserAgent) throws Exception {
         String currentUrl = urlStr;
         int redirectCount = 0;
-        final int maxRedirects = 7;
+        final int maxRedirects = 10;
 
         while (redirectCount < maxRedirects) {
             HttpURLConnection conn = openConnection(currentUrl);
+            if (acceptHeader != null) conn.setRequestProperty("Accept", acceptHeader);
+            if (extraUserAgent != null) conn.setRequestProperty("User-Agent", extraUserAgent);
             conn.connect();
             int status = conn.getResponseCode();
 

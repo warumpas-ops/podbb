@@ -52,7 +52,9 @@ public class PodcastSearchEngine {
             String title = obj.optString("title", "Unknown Podcast");
             String author = obj.optString("author", "");
             String desc = obj.optString("description", "");
-            String logo = obj.optString("scaled_logo_url", obj.optString("logo_url", ""));
+            // Prefer logo_url (direct CDN link), fall back to scaled_logo_url (gpodder proxy - has redirects)
+            String logo = obj.optString("logo_url", "");
+            if (logo.isEmpty()) logo = obj.optString("scaled_logo_url", "");
             String id = String.valueOf(feedUrl.hashCode());
 
             Podcast p = new Podcast(title, author, desc, logo, feedUrl, id);
@@ -91,7 +93,9 @@ public class PodcastSearchEngine {
                 String title = obj.optString("title", "Podcast");
                 String author = obj.optString("author", "");
                 String desc = obj.optString("description", "");
-                String logo = obj.optString("scaled_logo_url", obj.optString("logo_url", ""));
+                // Prefer logo_url (direct CDN link), fall back to scaled_logo_url (gpodder proxy - has redirects)
+            String logo = obj.optString("logo_url", "");
+            if (logo.isEmpty()) logo = obj.optString("scaled_logo_url", "");
                 String id = String.valueOf(feedUrl.hashCode());
 
                 Podcast p = new Podcast(title, author, desc, logo, feedUrl, id);
