@@ -10,6 +10,7 @@ import java.io.File;
 import java.io.FileOutputStream;
 import java.io.IOException;
 import java.io.InputStream;
+import java.lang.reflect.Method;
 import java.net.HttpURLConnection;
 import java.net.InetAddress;
 import java.net.Socket;
@@ -55,16 +56,31 @@ public class HttpHelper {
             SSLContext sslContext = SSLContext.getInstance("TLS");
             sslContext.init(null, trustAllCerts, new SecureRandom());
             
-            // Wrap to force enable TLSv1.2, TLSv1.1, TLSv1 on older Android / BB10 runtime
             final SSLSocketFactory defaultFactory = sslContext.getSocketFactory();
             sslSocketFactory = new SSLSocketFactory() {
                 private final String[] PROTOCOLS = new String[]{"TLSv1.2", "TLSv1.1", "TLSv1"};
 
-                private Socket enableProtocols(Socket socket) {
+                private Socket configureSocket(Socket socket, String host) {
                     if (socket instanceof SSLSocket) {
+                        SSLSocket ssl = (SSLSocket) socket;
                         try {
-                            ((SSLSocket) socket).setEnabledProtocols(PROTOCOLS);
-                        } catch (Exception ignored) {}
+                            ssl.setEnabledProtocols(PROTOCOLS);
+                        } catch (Exception ignored) {
+                            try {
+                                ssl.setEnabledProtocols(ssl.getSupportedProtocols());
+                            } catch (Exception ignored2) {}
+                        }
+                        // Enable SNI (Server Name Indication) via reflection for Android 4.3
+                        if (host != null && !host.isEmpty()) {
+                            try {
+                                Method setHostname = ssl.getClass().getMethod("setHostname", String.class);
+                                setHostname.invoke(ssl, host);
+                            } catch (Exception ignored) {}
+                            try {
+                                Method setUseSessionTickets = ssl.getClass().getMethod("setUseSessionTickets", boolean.class);
+                                setUseSessionTickets.invoke(ssl, true);
+                            } catch (Exception ignored) {}
+                        }
                     }
                     return socket;
                 }
@@ -81,27 +97,27 @@ public class HttpHelper {
 
                 @Override
                 public Socket createSocket(Socket s, String host, int port, boolean autoClose) throws IOException {
-                    return enableProtocols(defaultFactory.createSocket(s, host, port, autoClose));
+                    return configureSocket(defaultFactory.createSocket(s, host, port, autoClose), host);
                 }
 
                 @Override
                 public Socket createSocket(String host, int port) throws IOException {
-                    return enableProtocols(defaultFactory.createSocket(host, port));
+                    return configureSocket(defaultFactory.createSocket(host, port), host);
                 }
 
                 @Override
                 public Socket createSocket(String host, int port, InetAddress localHost, int localPort) throws IOException {
-                    return enableProtocols(defaultFactory.createSocket(host, port, localHost, localPort));
+                    return configureSocket(defaultFactory.createSocket(host, port, localHost, localPort), host);
                 }
 
                 @Override
                 public Socket createSocket(InetAddress host, int port) throws IOException {
-                    return enableProtocols(defaultFactory.createSocket(host, port));
+                    return configureSocket(defaultFactory.createSocket(host, port), host.getHostName());
                 }
 
                 @Override
                 public Socket createSocket(InetAddress address, int port, InetAddress localAddress, int localPort) throws IOException {
-                    return enableProtocols(defaultFactory.createSocket(address, port, localAddress, localPort));
+                    return configureSocket(defaultFactory.createSocket(address, port, localAddress, localPort), address.getHostName());
                 }
             };
 
@@ -141,10 +157,22 @@ public class HttpHelper {
         final int maxRedirects = 10;
 
         while (redirectCount < maxRedirects) {
-            HttpURLConnection conn = openConnection(currentUrl);
-            if (acceptHeader != null) conn.setRequestProperty("Accept", acceptHeader);
-            if (extraUserAgent != null) conn.setRequestProperty("User-Agent", extraUserAgent);
-            conn.connect();
+            HttpURLConnection conn = null;
+            try {
+                conn = openConnection(currentUrl);
+                if (acceptHeader != null) conn.setRequestProperty("Accept", acceptHeader);
+                if (extraUserAgent != null) conn.setRequestProperty("User-Agent", extraUserAgent);
+                conn.connect();
+            } catch (javax.net.ssl.SSLException | java.security.GeneralSecurityException sslErr) {
+                // If HTTPS failed on BB10, try falling back to plain HTTP
+                if (currentUrl.startsWith("https://")) {
+                    currentUrl = currentUrl.replaceFirst("^https://", "http://");
+                    redirectCount++;
+                    continue;
+                }
+                throw sslErr;
+            }
+
             int status = conn.getResponseCode();
 
             if (status == HttpURLConnection.HTTP_MOVED_PERM ||
