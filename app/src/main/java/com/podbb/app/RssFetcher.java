@@ -5,10 +5,9 @@ import org.xmlpull.v1.XmlPullParser;
 import org.xmlpull.v1.XmlPullParserException;
 
 import java.io.BufferedInputStream;
-import java.io.ByteArrayInputStream;
-import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.io.InputStream;
+import java.io.PushbackInputStream;
 import java.net.HttpURLConnection;
 import java.text.SimpleDateFormat;
 import java.util.ArrayList;
@@ -57,58 +56,74 @@ public class RssFetcher {
         }
 
         String contentEncoding = conn.getContentEncoding();
-        String contentType = conn.getContentType();
-        InputStream raw = new BufferedInputStream(conn.getInputStream(), 16384);
-        byte[] data = readAll(raw);
-        raw.close();
-        conn.disconnect();
+        InputStream raw = conn.getInputStream();
+        InputStream stream = prepareStream(raw, contentEncoding);
 
-        if (data == null || data.length == 0) {
-            throw new Exception("Empty feed response");
+        FeedResult result;
+        try {
+            result = parseXmlStream(stream);
+        } finally {
+            try { stream.close(); } catch (Exception ignored) {}
+            conn.disconnect();
         }
 
-        // Automatic GZIP decompression: either by Content-Encoding header or magic bytes (0x1F, 0x8B)
-        boolean isGzip = (contentEncoding != null && contentEncoding.toLowerCase(Locale.ENGLISH).contains("gzip"))
-                || (data.length >= 2 && (data[0] & 0xFF) == 0x1F && (data[1] & 0xFF) == 0x8B);
-
-        if (isGzip) {
-            try {
-                GZIPInputStream gis = new GZIPInputStream(new ByteArrayInputStream(data));
-                data = readAll(gis);
-                gis.close();
-            } catch (Exception ignored) {}
-        }
-
-        // Strip UTF-8 BOM (0xEF, 0xBB, 0xBF) which breaks Android's XmlPullParser
-        if (data.length >= 3
-                && (data[0] & 0xFF) == 0xEF
-                && (data[1] & 0xFF) == 0xBB
-                && (data[2] & 0xFF) == 0xBF) {
-            byte[] stripped = new byte[data.length - 3];
-            System.arraycopy(data, 3, stripped, 0, stripped.length);
-            data = stripped;
-        }
-
-        String encoding = sniffEncoding(data, contentType);
-        return parseXml(new ByteArrayInputStream(data), encoding);
+        return result;
     }
 
-    private static FeedResult parseXml(InputStream in, String encoding) throws Exception {
+    /**
+     * Inspects the input stream without buffering the entire document into memory:
+     * 1. Detects and decompresses GZIP (magic 0x1F, 0x8B or Content-Encoding header)
+     * 2. Detects and strips UTF-8 BOM (0xEF, 0xBB, 0xBF)
+     */
+    private static InputStream prepareStream(InputStream raw, String contentEncoding) throws IOException {
+        BufferedInputStream bis = new BufferedInputStream(raw, 16384);
+        PushbackInputStream pb = new PushbackInputStream(bis, 4);
+
+        byte[] header = new byte[4];
+        int read = pb.read(header);
+        if (read < 2) {
+            if (read > 0) pb.unread(header, 0, read);
+            return pb;
+        }
+
+        // 1. Check GZIP
+        boolean isGzip = (contentEncoding != null && contentEncoding.toLowerCase(Locale.ENGLISH).contains("gzip"))
+                || ((header[0] & 0xFF) == 0x1F && (header[1] & 0xFF) == 0x8B);
+
+        InputStream streamToUse;
+        if (isGzip) {
+            pb.unread(header, 0, read);
+            GZIPInputStream gis = new GZIPInputStream(pb);
+            streamToUse = new BufferedInputStream(gis, 8192);
+        } else {
+            pb.unread(header, 0, read);
+            streamToUse = pb;
+        }
+
+        // 2. Strip UTF-8 BOM if present
+        PushbackInputStream pbFinal = new PushbackInputStream(streamToUse, 4);
+        byte[] bom = new byte[3];
+        int bomRead = pbFinal.read(bom);
+        if (bomRead == 3 && (bom[0] & 0xFF) == 0xEF && (bom[1] & 0xFF) == 0xBB && (bom[2] & 0xFF) == 0xBF) {
+            // BOM stripped cleanly
+        } else if (bomRead > 0) {
+            pbFinal.unread(bom, 0, bomRead);
+        }
+        return pbFinal;
+    }
+
+    private static FeedResult parseXmlStream(InputStream in) throws Exception {
         FeedResult result = new FeedResult();
 
         XmlPullParser parser = Xml.newPullParser();
         parser.setFeature(XmlPullParser.FEATURE_PROCESS_NAMESPACES, false);
-        try {
-            parser.setInput(in, encoding);
-        } catch (Exception e) {
-            parser.setInput(in, "UTF-8");
-        }
+        parser.setInput(in, null); // Auto-detect from <?xml ...?> declaration or UTF-8
 
         Episode current = null;
         boolean inItem = false;
         boolean inChannelImage = false;
         String tag = "";
-        final int MAX_EPISODES = 150;
+        final int MAX_EPISODES = 100; // Cap to keep BlackBerry Q5 fast and light on RAM
 
         try {
             int eventType = parser.getEventType();
@@ -235,47 +250,6 @@ public class RssFetcher {
         } catch (Exception e) {
             return null;
         }
-    }
-
-    private static byte[] readAll(InputStream in) throws IOException {
-        ByteArrayOutputStream buf = new ByteArrayOutputStream();
-        byte[] chunk = new byte[8192];
-        int n;
-        while ((n = in.read(chunk)) != -1) {
-            buf.write(chunk, 0, n);
-        }
-        return buf.toByteArray();
-    }
-
-    private static String sniffEncoding(byte[] data, String contentType) {
-        try {
-            int len = Math.min(data.length, 256);
-            String head = new String(data, 0, len, "US-ASCII");
-            int encStart = head.indexOf("encoding=\"");
-            if (encStart >= 0) {
-                int from = encStart + 10;
-                int to = head.indexOf('"', from);
-                if (to > from) return head.substring(from, to);
-            }
-            encStart = head.indexOf("encoding='");
-            if (encStart >= 0) {
-                int from = encStart + 10;
-                int to = head.indexOf('\'', from);
-                if (to > from) return head.substring(from, to);
-            }
-        } catch (Exception ignored) {}
-
-        if (contentType != null) {
-            int cs = contentType.toLowerCase(Locale.ENGLISH).indexOf("charset=");
-            if (cs >= 0) {
-                String enc = contentType.substring(cs + 8).trim();
-                int semi = enc.indexOf(';');
-                if (semi >= 0) enc = enc.substring(0, semi);
-                return enc.trim();
-            }
-        }
-
-        return "UTF-8";
     }
 
     private static long parseDate(String s) {

@@ -273,6 +273,11 @@ public class PodcastDetailActivity extends Activity {
     }
 
     private void loadEpisodes(final String feedUrl, final long podcastId) {
+        if (feedUrl == null || feedUrl.trim().isEmpty()) {
+            tvEpisodesStatus.setText("Feed error: Missing URL");
+            tvStatusMini.setText("Missing URL");
+            return;
+        }
         tvEpisodesStatus.setText("Fetching feed...");
         tvStatusMini.setText("Fetching feed...");
         new Thread(new Runnable() {
@@ -320,11 +325,11 @@ public class PodcastDetailActivity extends Activity {
                             tvStatusMini.setText(countStr);
                         });
                     }
-                } catch (Exception e) {
-                    final String msg = e.getMessage() != null ? e.getMessage() : "offline";
+                } catch (Throwable e) {
+                    final String msg = e.getMessage() != null ? e.getMessage() : e.getClass().getSimpleName();
                     runOnUiThread(() -> {
                         tvEpisodesStatus.setText("Feed error: " + msg);
-                        tvStatusMini.setText("Feed error");
+                        tvStatusMini.setText("Feed error: " + msg);
                     });
                 }
             }

@@ -18,6 +18,8 @@ import java.net.URL;
 import java.security.SecureRandom;
 import java.security.cert.CertificateException;
 import java.security.cert.X509Certificate;
+import java.util.HashSet;
+import java.util.Set;
 
 import javax.net.ssl.HttpsURLConnection;
 import javax.net.ssl.SSLContext;
@@ -53,19 +55,31 @@ public class HttpHelper {
                 }
             };
 
-            SSLContext sslContext = SSLContext.getInstance("TLS");
+            SSLContext sslContext;
+            try {
+                sslContext = SSLContext.getInstance("TLSv1.2");
+            } catch (Exception e) {
+                sslContext = SSLContext.getInstance("TLS");
+            }
             sslContext.init(null, trustAllCerts, new SecureRandom());
 
-            // Wrap to force enable TLSv1.2, TLSv1.1, TLSv1 on older Android / BB10 runtime
+            // Wrap to force enable TLSv1.2 and modern cipher suites on Android 4.3 / BB10 runtime
             final SSLSocketFactory defaultFactory = sslContext.getSocketFactory();
             sslSocketFactory = new SSLSocketFactory() {
-                private final String[] PROTOCOLS = new String[]{"TLSv1.2", "TLSv1.1", "TLSv1"};
-
                 private Socket enableProtocols(Socket socket, String host) {
                     if (socket instanceof SSLSocket) {
                         SSLSocket ssl = (SSLSocket) socket;
                         try {
-                            ssl.setEnabledProtocols(PROTOCOLS);
+                            String[] supported = ssl.getSupportedProtocols();
+                            if (supported != null && supported.length > 0) {
+                                ssl.setEnabledProtocols(supported);
+                            }
+                        } catch (Exception ignored) {}
+                        try {
+                            String[] supportedCiphers = ssl.getSupportedCipherSuites();
+                            if (supportedCiphers != null && supportedCiphers.length > 0) {
+                                ssl.setEnabledCipherSuites(supportedCiphers);
+                            }
                         } catch (Exception ignored) {}
                         // Set SNI hostname via reflection if host is a non-empty String
                         if (host != null && !host.isEmpty()) {
@@ -109,13 +123,13 @@ public class HttpHelper {
 
                 @Override
                 public Socket createSocket(InetAddress host, int port) throws IOException {
-                    // Do NOT call host.getHostName() - triggers blocking reverse DNS in Android 4.3!
+                    // Avoid host.getHostName() - triggers blocking reverse DNS in Android 4.3!
                     return enableProtocols(defaultFactory.createSocket(host, port), null);
                 }
 
                 @Override
                 public Socket createSocket(InetAddress address, int port, InetAddress localAddress, int localPort) throws IOException {
-                    // Do NOT call address.getHostName() - triggers blocking reverse DNS in Android 4.3!
+                    // Avoid address.getHostName() - triggers blocking reverse DNS in Android 4.3!
                     return enableProtocols(defaultFactory.createSocket(address, port, localAddress, localPort), null);
                 }
             };
@@ -154,13 +168,30 @@ public class HttpHelper {
         String currentUrl = urlStr;
         int redirectCount = 0;
         final int maxRedirects = 10;
+        Set<String> visited = new HashSet<>();
 
         while (redirectCount < maxRedirects) {
-            HttpURLConnection conn = openConnection(currentUrl);
-            if (acceptHeader != null) conn.setRequestProperty("Accept", acceptHeader);
-            if (extraUserAgent != null) conn.setRequestProperty("User-Agent", extraUserAgent);
+            HttpURLConnection conn = null;
+            int status = -1;
 
-            int status = conn.getResponseCode();
+            try {
+                conn = openConnection(currentUrl);
+                if (acceptHeader != null) conn.setRequestProperty("Accept", acceptHeader);
+                if (extraUserAgent != null) conn.setRequestProperty("User-Agent", extraUserAgent);
+                status = conn.getResponseCode();
+            } catch (javax.net.ssl.SSLException | java.security.GeneralSecurityException sslErr) {
+                // If HTTPS failed on BB10 due to unsupported cipher, try plain HTTP fallback
+                if (currentUrl.startsWith("https://")) {
+                    String httpUrl = currentUrl.replaceFirst("^https://", "http://");
+                    if (!visited.contains(httpUrl)) {
+                        visited.add(currentUrl);
+                        currentUrl = httpUrl;
+                        redirectCount++;
+                        continue;
+                    }
+                }
+                throw sslErr;
+            }
 
             if (status == HttpURLConnection.HTTP_MOVED_PERM ||
                 status == HttpURLConnection.HTTP_MOVED_TEMP ||
@@ -176,6 +207,13 @@ public class HttpHelper {
                     URL base = new URL(currentUrl);
                     newUrl = new URL(base, newUrl).toString();
                 }
+
+                visited.add(currentUrl);
+                if (visited.contains(newUrl)) {
+                    // Loop detected (e.g. HTTP -> HTTPS -> HTTP)
+                    throw new Exception("Redirect loop detected for " + newUrl);
+                }
+
                 currentUrl = newUrl;
                 redirectCount++;
             } else {
