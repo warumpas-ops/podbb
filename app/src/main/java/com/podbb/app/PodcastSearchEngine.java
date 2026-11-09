@@ -40,7 +40,7 @@ public class PodcastSearchEngine {
         // Strategy 1: Apple iTunes Podcast Search API (global, up-to-date, canonical feed URLs)
         try {
             String encoded = URLEncoder.encode(query, "UTF-8");
-            String itunesUrl = "https://itunes.apple.com/search?term=" + encoded + "&entity=podcast&limit=30";
+            String itunesUrl = "https://itunes.apple.com/search?term=" + encoded + "&entity=podcast&limit=60";
             String jsonStr = HttpHelper.fetchString(itunesUrl);
             JSONObject root = new JSONObject(jsonStr);
             JSONArray items = root.optJSONArray("results");
@@ -109,7 +109,7 @@ public class PodcastSearchEngine {
 
         // Try iTunes top podcasts
         try {
-            String itunesUrl = "https://itunes.apple.com/search?term=podcast&entity=podcast&limit=30";
+            String itunesUrl = "https://itunes.apple.com/search?term=podcast&entity=podcast&limit=60";
             String jsonStr = HttpHelper.fetchString(itunesUrl);
             JSONObject root = new JSONObject(jsonStr);
             JSONArray items = root.optJSONArray("results");
@@ -141,7 +141,7 @@ public class PodcastSearchEngine {
 
         // Fallback: gpodder toplist
         try {
-            String urlStr = "http://gpodder.net/toplist/30.json";
+            String urlStr = "http://gpodder.net/toplist/50.json";
             String jsonStr = fetchHttpJson(urlStr);
             JSONArray items = new JSONArray(jsonStr);
 
