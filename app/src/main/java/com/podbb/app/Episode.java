@@ -17,6 +17,7 @@ public class Episode {
     public String imageUrl;        // transient, episode-level art (itunes:image)
     public String transcriptUrl;   // transient, from <podcast:transcript url="...">
     public String transcriptType;  // transient, e.g. "text/vtt", "application/json"
+    public String chaptersUrl;    // transient, from <podcast:chapters url="...">
 
     public Episode() {}
 

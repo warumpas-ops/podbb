@@ -43,7 +43,7 @@ public class PlayerActivity extends Activity {
     private TextView tvCaptionsContent;
     private boolean captionsVisible = false;
 
-    private String transcriptUrl, transcriptType;
+    private String transcriptUrl, transcriptType, chaptersUrl, episodeDescription;
     private final List<Cue> transcriptCues = new ArrayList<>();
     private boolean transcriptLoaded = false;
     private boolean transcriptLoading = false;
@@ -109,6 +109,8 @@ public class PlayerActivity extends Activity {
         artworkUrl = getIntent().getStringExtra("podcast_artwork");
         transcriptUrl = getIntent().getStringExtra("transcript_url");
         transcriptType = getIntent().getStringExtra("transcript_type");
+        chaptersUrl = getIntent().getStringExtra("chapters_url");
+        episodeDescription = getIntent().getStringExtra("episode_description");
 
         imgArtwork = (ImageView) findViewById(R.id.imgArtwork);
         tvSourceBadge = (TextView) findViewById(R.id.tvSourceBadge);
@@ -326,45 +328,150 @@ public class PlayerActivity extends Activity {
     }
 
     private void loadTranscript() {
-        if (transcriptUrl == null || transcriptUrl.trim().isEmpty()) {
-            if (tvCaptionsContent != null) {
-                tvCaptionsContent.setText("[No transcript provided in RSS feed]\n\nThis show does not publish synchronized <podcast:transcript> files.");
-            }
-            return;
-        }
-
         transcriptLoading = true;
         if (tvCaptionsContent != null) {
-            tvCaptionsContent.setText("[Fetching transcript...]");
+            tvCaptionsContent.setText("[Loading captions & show notes...]");
         }
 
         new Thread(() -> {
-            try {
-                String raw = HttpHelper.fetchString(transcriptUrl);
-                List<Cue> cues = parseTranscript(raw, transcriptType);
-                runOnUiThread(() -> {
-                    transcriptLoading = false;
-                    transcriptLoaded = true;
-                    transcriptCues.clear();
-                    transcriptCues.addAll(cues);
-                    if (transcriptCues.isEmpty()) {
-                        tvCaptionsContent.setText("[Transcript could not be parsed]\n\n" + (raw.length() > 200 ? raw.substring(0, 200) + "..." : raw));
+            List<Cue> cues = new ArrayList<>();
+
+            // 1. Try official <podcast:transcript>
+            if (transcriptUrl != null && !transcriptUrl.trim().isEmpty()) {
+                try {
+                    String raw = HttpHelper.fetchString(transcriptUrl.trim());
+                    cues = parseTranscript(raw, transcriptType);
+                } catch (Exception ignored) {}
+            }
+
+            // 2. Try <podcast:chapters> JSON
+            if (cues.isEmpty() && chaptersUrl != null && !chaptersUrl.trim().isEmpty()) {
+                try {
+                    String raw = HttpHelper.fetchString(chaptersUrl.trim());
+                    cues = parseChaptersJson(raw);
+                } catch (Exception ignored) {}
+            }
+
+            // 3. Try parsing timestamps / transcript link from episodeDescription
+            if (cues.isEmpty() && episodeDescription != null && !episodeDescription.trim().isEmpty()) {
+                String externalUrl = findTranscriptUrlInText(episodeDescription);
+                if (externalUrl != null) {
+                    try {
+                        String raw = HttpHelper.fetchString(externalUrl);
+                        cues = parseTranscript(raw, "text/vtt");
+                    } catch (Exception ignored) {}
+                }
+
+                // If still empty, parse timestamped chapters from the show notes:
+                // matches e.g. "(09:53) - Topic", "01:23 Discussion", "[01:15:30] ..."
+                if (cues.isEmpty()) {
+                    cues = parseTimestampsFromText(episodeDescription, durationSeconds);
+                }
+            }
+
+            final List<Cue> finalCues = cues;
+            runOnUiThread(() -> {
+                transcriptLoading = false;
+                transcriptLoaded = true;
+                transcriptCues.clear();
+                transcriptCues.addAll(finalCues);
+
+                if (!transcriptCues.isEmpty()) {
+                    lastCueIndex = -2;
+                    if (bound && playerService != null && playerService.isPrepared()) {
+                        updateCaptions(playerService.getCurrentPosition());
                     } else {
-                        lastCueIndex = -2;
-                        if (bound && playerService != null && playerService.isPrepared()) {
-                            updateCaptions(playerService.getCurrentPosition());
+                        updateCaptions(0);
+                    }
+                } else {
+                    // Fallback: Display the episode's full show notes/summary
+                    if (episodeDescription != null && !episodeDescription.trim().isEmpty()) {
+                        String clean = android.text.Html.fromHtml(episodeDescription).toString().trim();
+                        tvCaptionsContent.setText("[Show Notes & Summary]\n\n" + clean);
+                    } else {
+                        tvCaptionsContent.setText("[No captions or show notes published for this episode]");
+                    }
+                }
+            });
+        }).start();
+    }
+
+    private List<Cue> parseChaptersJson(String raw) {
+        List<Cue> list = new ArrayList<>();
+        if (raw == null || raw.trim().isEmpty()) return list;
+        try {
+            org.json.JSONObject obj = new org.json.JSONObject(raw);
+            org.json.JSONArray chapters = obj.optJSONArray("chapters");
+            if (chapters != null) {
+                for (int i = 0; i < chapters.length(); i++) {
+                    org.json.JSONObject ch = chapters.getJSONObject(i);
+                    Cue cue = new Cue();
+                    double start = ch.optDouble("startTime", 0);
+                    cue.startMs = (long) (start * 1000);
+                    cue.text = ch.optString("title", "");
+                    if (ch.has("endTime")) {
+                        cue.endMs = (long) (ch.optDouble("endTime") * 1000);
+                    }
+                    if (!cue.text.isEmpty()) list.add(cue);
+                }
+                for (int i = 0; i < list.size(); i++) {
+                    if (list.get(i).endMs == 0) {
+                        if (i < list.size() - 1) {
+                            list.get(i).endMs = list.get(i + 1).startMs;
                         } else {
-                            updateCaptions(0);
+                            list.get(i).endMs = (durationSeconds > 0) ? (durationSeconds * 1000L) : (list.get(i).startMs + 60000);
                         }
                     }
-                });
-            } catch (Exception e) {
-                runOnUiThread(() -> {
-                    transcriptLoading = false;
-                    tvCaptionsContent.setText("[Transcript fetch error: " + (e.getMessage() != null ? e.getMessage() : "Network error") + "]");
-                });
+                }
             }
-        }).start();
+        } catch (Exception ignored) {}
+        return list;
+    }
+
+    private List<Cue> parseTimestampsFromText(String text, int totalDurationSec) {
+        List<Cue> list = new ArrayList<>();
+        if (text == null || text.trim().isEmpty()) return list;
+
+        String plain = android.text.Html.fromHtml(text).toString();
+        java.util.regex.Pattern pattern = java.util.regex.Pattern.compile(
+            "(?:^|\\n)\\s*\\(?(?:(\\d{1,2}):)?(\\d{1,2}):(\\d{2})\\)?\\s*[-–—:•]?\\s*([^\\n\\r<]+)"
+        );
+        java.util.regex.Matcher m = pattern.matcher(plain);
+
+        while (m.find()) {
+            long h = m.group(1) != null ? Long.parseLong(m.group(1)) : 0;
+            long min = Long.parseLong(m.group(2));
+            long sec = Long.parseLong(m.group(3));
+            long totalMs = (h * 3600 + min * 60 + sec) * 1000;
+
+            String label = m.group(4).trim();
+            if (label.length() > 1 && !label.startsWith("http")) {
+                Cue cue = new Cue();
+                cue.startMs = totalMs;
+                cue.text = label;
+                list.add(cue);
+            }
+        }
+
+        for (int i = 0; i < list.size(); i++) {
+            if (i < list.size() - 1) {
+                list.get(i).endMs = list.get(i + 1).startMs;
+            } else {
+                list.get(i).endMs = (totalDurationSec > 0) ? (totalDurationSec * 1000L) : (list.get(i).startMs + 120000);
+            }
+        }
+
+        return list;
+    }
+
+    private String findTranscriptUrlInText(String text) {
+        if (text == null) return null;
+        java.util.regex.Pattern p = java.util.regex.Pattern.compile("https?://[^\\s<>\"']+(?:transcript|caption|subtitles)[^\\s<>\"']*", java.util.regex.Pattern.CASE_INSENSITIVE);
+        java.util.regex.Matcher m = p.matcher(text);
+        if (m.find()) {
+            return m.group(0);
+        }
+        return null;
     }
 
     private void updateCaptions(int currentMs) {

@@ -197,6 +197,11 @@ public class RssFetcher {
                                 current.transcriptUrl = url.trim();
                                 current.transcriptType = (type != null) ? type.trim() : "text/vtt";
                             }
+                        } else if (tag.contains("chapters")) {
+                            String url = parser.getAttributeValue(null, "url");
+                            if (url != null && !url.trim().isEmpty() && current.chaptersUrl == null) {
+                                current.chaptersUrl = url.trim();
+                            }
                         }
                     }
 
@@ -227,8 +232,14 @@ public class RssFetcher {
                                 if (current.title == null) current.title = text;
                             } else if (tag.equals("guid") || tag.equals("id") || tag.endsWith(":guid")) {
                                 current.guid = text;
-                            } else if (tag.equals("description") || tag.contains("summary") || tag.contains("encoded")) {
-                                if (current.description == null) current.description = text;
+                            } else if (tag.contains("encoded")) {
+                                if (text.length() > (current.description != null ? current.description.length() : 0)) {
+                                    current.description = text;
+                                }
+                            } else if (tag.equals("description") || tag.contains("summary")) {
+                                if (current.description == null || current.description.length() < text.length()) {
+                                    current.description = text;
+                                }
                             } else if (tag.equals("pubdate") || tag.equals("published") || tag.equals("updated")) {
                                 current.pubDate = parseDate(text);
                             } else if (tag.contains("duration")) {
