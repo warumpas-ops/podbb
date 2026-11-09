@@ -40,9 +40,13 @@ With the official shutdown of BlackBerry World and the expiration of legacy Blac
 
 ## Screenshots & Layout
 
-| Grid Subscriptions | Search & Discovery | Episode Player |
+| Home & Subscriptions | Live Search (20+ Results) | Podcast Details & Episodes |
 | :---: | :---: | :---: |
-| *Visual cover grid tailored for 1:1 displays* | *Live Apple Podcasts & RSS parsing* | *Full playback controls with scrub bar* |
+| <img src="screenshots/01_home_empty.png" width="220" alt="Home Screen" /> | <img src="screenshots/02_search_results.png" width="220" alt="Search Results" /> | <img src="screenshots/03_podcast_detail.png" width="220" alt="Podcast Details" /> |
+
+| Now Playing & Audio Scrubber | Playback Speeds & Offline Downloads |
+| :---: | :---: |
+| <img src="screenshots/04_now_playing.png" width="220" alt="Now Playing" /> | <img src="screenshots/05_offline_download.png" width="220" alt="Offline Download Button" /> |
 
 ---
 
