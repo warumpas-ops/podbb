@@ -26,21 +26,71 @@ public class RssFetcher {
     }
 
     public static FeedResult fetchFeed(String feedUrl) throws Exception {
+        return fetchFeed(feedUrl, null);
+    }
+
+    public static FeedResult fetchFeed(String feedUrl, String itunesId) throws Exception {
+        Exception primaryErr;
         try {
             return doFetch(feedUrl);
-        } catch (Exception primaryErr) {
-            // If primary fetch failed (e.g. SSL or handshake error) and URL was HTTPS, try HTTP fallback
-            if (feedUrl != null && feedUrl.startsWith("https://")) {
-                try {
-                    return doFetch(feedUrl.replaceFirst("^https://", "http://"));
-                } catch (Exception ignored) {}
-            }
-            throw primaryErr;
+        } catch (Exception e) {
+            primaryErr = e;
         }
+
+        // Fallback 1: If HTTPS failed, try plain HTTP
+        if (feedUrl != null && feedUrl.startsWith("https://")) {
+            try {
+                return doFetch(feedUrl.replaceFirst("^https://", "http://"));
+            } catch (Exception ignored) {}
+        }
+
+        // Fallback 2: Try iTunes Lookup API to get the canonical feed URL
+        if (itunesId != null && !itunesId.trim().isEmpty()) {
+            try {
+                String lookupUrl = "https://itunes.apple.com/lookup?id=" + itunesId.trim() + "&entity=podcast";
+                String json = HttpHelper.fetchString(lookupUrl);
+                String resolvedFeed = extractFeedUrlFromItunesLookup(json);
+                if (resolvedFeed != null && !resolvedFeed.equals(feedUrl)) {
+                    try {
+                        return doFetch(resolvedFeed);
+                    } catch (Exception ignored) {}
+                    if (resolvedFeed.startsWith("https://")) {
+                        try {
+                            return doFetch(resolvedFeed.replaceFirst("^https://", "http://"));
+                        } catch (Exception ignored) {}
+                    }
+                }
+            } catch (Exception ignored) {}
+        }
+
+        // All fallbacks exhausted — throw a user-friendly message
+        String msg = primaryErr.getMessage();
+        if (msg == null) msg = primaryErr.getClass().getSimpleName();
+        if (msg.contains("403")) throw new Exception("Feed blocked by server (403) — host may require a browser");
+        if (msg.contains("401")) throw new Exception("Feed requires login (401)");
+        if (msg.contains("404")) throw new Exception("Feed not found (404) — URL may be outdated");
+        if (msg.contains("SSL") || msg.contains("handshake") || msg.contains("certificate"))
+            throw new Exception("SSL/TLS error — server uses unsupported encryption");
+        if (msg.contains("timeout") || msg.contains("timed out") || msg.contains("SocketTimeout"))
+            throw new Exception("Feed timed out — server too slow or offline");
+        if (msg.contains("refused") || msg.contains("ECONNREFUSED"))
+            throw new Exception("Connection refused — server is down");
+        throw primaryErr;
+    }
+
+    /** Extract feedUrl field from iTunes lookup JSON response */
+    private static String extractFeedUrlFromItunesLookup(String json) {
+        if (json == null) return null;
+        // Simple regex to find "feedUrl":"...value..."
+        java.util.regex.Matcher m = java.util.regex.Pattern
+            .compile("\"feedUrl\"\\s*:\\s*\"([^\"]+)\"")
+            .matcher(json);
+        if (m.find()) return m.group(1);
+        return null;
     }
 
     public static List<Episode> fetch(String feedUrl) throws Exception {
-        return fetchFeed(feedUrl).episodes;
+        return fetchFeed(feedUrl, null).episodes;
     }
 
     private static FeedResult doFetch(String feedUrl) throws Exception {
@@ -181,8 +231,16 @@ public class RssFetcher {
                         } else if (tag.equals("link")) {
                             String href = parser.getAttributeValue(null, "href");
                             String rel = parser.getAttributeValue(null, "rel");
-                            if (href != null && ("enclosure".equals(rel) || href.contains(".mp3") || href.contains(".m4a"))) {
-                                if (current.audioUrl == null) current.audioUrl = href.trim();
+                            String linkType = parser.getAttributeValue(null, "type");
+                            // Atom enclosure: <link rel="enclosure" type="audio/..." href="..."/>
+                            if (href != null && !href.trim().isEmpty()) {
+                                boolean isAudioType = linkType != null && linkType.startsWith("audio");
+                                boolean isEnclosureRel = "enclosure".equals(rel);
+                                boolean looksAudio = href.contains(".mp3") || href.contains(".m4a")
+                                        || href.contains(".ogg") || href.contains(".aac");
+                                if ((isEnclosureRel || isAudioType || looksAudio) && current.audioUrl == null) {
+                                    current.audioUrl = href.trim();
+                                }
                             }
                         } else if (tag.contains("image")) {
                             String href = parser.getAttributeValue(null, "href");

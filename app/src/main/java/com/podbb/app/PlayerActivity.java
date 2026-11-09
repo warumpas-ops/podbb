@@ -433,19 +433,35 @@ public class PlayerActivity extends Activity {
         if (text == null || text.trim().isEmpty()) return list;
 
         String plain = android.text.Html.fromHtml(text).toString();
+
+        // Match common timestamp patterns in show notes:
+        // (09:53) Topic, [01:15:30] Topic, 00:30 Topic, 1:23:45 - Topic, etc.
+        // Groups: (1)=hours optional, (2)=minutes, (3)=seconds, (4)=label
         java.util.regex.Pattern pattern = java.util.regex.Pattern.compile(
-            "(?:^|\\n)\\s*\\(?(?:(\\d{1,2}):)?(\\d{1,2}):(\\d{2})\\)?\\s*[-–—:•]?\\s*([^\\n\\r<]+)"
+            "(?:^|\\n|\\r)\\s*" +                             // start of line
+            "(?:[\\[\\(])?" +                                  // optional [ or (
+            "(\\d{1,2}:)?" +                                   // optional hours + colon
+            "(\\d{1,2}):(\\d{2})" +                           // minutes:seconds
+            "(?:[\\]\\)])?" +                                  // optional ] or )
+            "\\s*[-–—:·•▶►]?\\s*" +                           // optional separator
+            "([^\\n\\r<]{2,80})"                               // label text (2-80 chars)
         );
         java.util.regex.Matcher m = pattern.matcher(plain);
 
         while (m.find()) {
-            long h = m.group(1) != null ? Long.parseLong(m.group(1)) : 0;
+            String hourStr = m.group(1);
+            long h = 0;
+            if (hourStr != null) {
+                // hourStr is like "1:" — strip the trailing colon
+                h = Long.parseLong(hourStr.replace(":", "").trim());
+            }
             long min = Long.parseLong(m.group(2));
             long sec = Long.parseLong(m.group(3));
             long totalMs = (h * 3600 + min * 60 + sec) * 1000;
 
             String label = m.group(4).trim();
-            if (label.length() > 1 && !label.startsWith("http")) {
+            // Skip if it looks like a URL, is too short, or is just a number
+            if (label.length() >= 2 && !label.startsWith("http") && !label.matches("^\\d+$")) {
                 Cue cue = new Cue();
                 cue.startMs = totalMs;
                 cue.text = label;
@@ -453,6 +469,7 @@ public class PlayerActivity extends Activity {
             }
         }
 
+        // Set end times: each cue ends where the next begins
         for (int i = 0; i < list.size(); i++) {
             if (i < list.size() - 1) {
                 list.get(i).endMs = list.get(i + 1).startMs;

@@ -28,6 +28,10 @@ public class PodcastDetailActivity extends Activity {
     private View panelMinimized;
     private boolean isMinimized = false;
 
+    // Scroll-linked animation state (Spotify-style continuous alpha)
+    private static final int COLLAPSE_DP = 90; // px offset at which panel is fully collapsed
+    private float lastScrollProgress = 0f;     // 0=expanded, 1=collapsed
+
     // Expanded views
     private ImageView imgPodcastCover;
     private TextView tvPodcastTitle;
@@ -103,7 +107,7 @@ public class PodcastDetailActivity extends Activity {
         tvStatusMini.setText("Loading feed...");
 
         // Tapping the sticky panel toggles expanded/minimized
-        panelStickyPodcast.setOnClickListener(v -> setHeroMinimized(!isMinimized));
+        panelStickyPodcast.setOnClickListener(v -> snapHero(!isMinimized));
 
         // Determine subscription state by checking if feed is in database
         Podcast existing = db.getPodcastByFeedUrl(feedUrl);
@@ -142,41 +146,50 @@ public class PodcastDetailActivity extends Activity {
         adapter = new EpisodeAdapter();
         listEpisodes.setAdapter(adapter);
 
-        // When scrolling the episodes, smoothly minimize the hero into search result shape.
-        // Uses HYSTERESIS (dead zone) so slow scrolling never flaps or jitters back and forth:
-        // - To COLLAPSE: User must scroll down past 32dp (or past the first item).
-        // - To EXPAND: User must scroll back up until within 6dp of the very top.
-        // In the dead zone (-6dp to -32dp), the state never changes.
+        // ── Spotify-style scroll: alpha tied directly to scroll offset while dragging.
+        // Snap to fully expanded or fully collapsed ONLY on SCROLL_STATE_IDLE.
+        // During a live drag, both panels are VISIBLE and their alphas crossfade
+        // continuously — no state machine, no threshold jitter.
         listEpisodes.setOnScrollListener(new AbsListView.OnScrollListener() {
             @Override
             public void onScrollStateChanged(AbsListView view, int scrollState) {
                 if (scrollState == SCROLL_STATE_IDLE) {
-                    if (view.getFirstVisiblePosition() == 0) {
-                        View firstChild = view.getChildAt(0);
-                        if (firstChild != null && firstChild.getTop() >= -dpToPx(6)) {
-                            setHeroMinimized(false);
-                        }
-                    }
+                    // Finger lifted — snap to nearest state with a short animation
+                    boolean shouldCollapse = lastScrollProgress >= 0.5f ||
+                            view.getFirstVisiblePosition() > 0;
+                    snapHero(shouldCollapse);
                 }
             }
 
             @Override
             public void onScroll(AbsListView view, int firstVisibleItem, int visibleItemCount, int totalItemCount) {
                 if (totalItemCount == 0) return;
-                View firstChild = view.getChildAt(0);
-                int top = (firstChild != null) ? firstChild.getTop() : 0;
 
-                if (!isMinimized) {
-                    // Currently expanded: only collapse once clearly scrolled down past 32dp
-                    if (firstVisibleItem > 0 || top < -dpToPx(32)) {
-                        setHeroMinimized(true);
-                    }
+                // Compute raw negative-top offset (0 at top, positive as user scrolls down)
+                int rawTop = 0;
+                if (firstVisibleItem == 0) {
+                    View firstChild = view.getChildAt(0);
+                    rawTop = (firstChild != null) ? -firstChild.getTop() : 0;
                 } else {
-                    // Currently collapsed: only expand once clearly back at the top within 6dp
-                    if (firstVisibleItem == 0 && top >= -dpToPx(6)) {
-                        setHeroMinimized(false);
-                    }
+                    rawTop = Integer.MAX_VALUE; // fully scrolled away
                 }
+
+                // Normalise to [0, 1]: 0 = fully expanded, 1 = fully collapsed
+                float progress = Math.min(1f, Math.max(0f, (float) rawTop / dpToPx(COLLAPSE_DP)));
+                lastScrollProgress = progress;
+
+                // Make both panels visible during the drag so the crossfade is smooth
+                if (panelExpanded.getVisibility() != View.VISIBLE) {
+                    panelExpanded.setAlpha(0f);
+                    panelExpanded.setVisibility(View.VISIBLE);
+                }
+                if (panelMinimized.getVisibility() != View.VISIBLE) {
+                    panelMinimized.setAlpha(0f);
+                    panelMinimized.setVisibility(View.VISIBLE);
+                }
+
+                panelExpanded.setAlpha(1f - progress);
+                panelMinimized.setAlpha(progress);
             }
         });
 
@@ -212,55 +225,49 @@ public class PodcastDetailActivity extends Activity {
         FontHelper.apply(findViewById(android.R.id.content), this);
     }
 
-    private void setHeroMinimized(final boolean minimize) {
-        if (this.isMinimized == minimize) return;
-        this.isMinimized = minimize;
+    /**
+     * Spotify-style snap: animates to fully expanded or fully collapsed state.
+     * Called only when the user lifts their finger (SCROLL_STATE_IDLE).
+     * During live drag, alpha is set directly in onScroll with no animation.
+     */
+    private void snapHero(final boolean collapse) {
+        if (this.isMinimized == collapse &&
+                (collapse ? panelMinimized.getAlpha() == 1f : panelExpanded.getAlpha() == 1f)) {
+            return; // already snapped
+        }
+        this.isMinimized = collapse;
 
-        // Cancel any running animation
         panelExpanded.animate().cancel();
         panelMinimized.animate().cancel();
 
-        final int DURATION = 170;
+        final int DURATION = 150;
 
-        if (minimize) {
-            if (panelMinimized.getVisibility() != View.VISIBLE) {
-                panelMinimized.setAlpha(0f);
-                panelMinimized.setVisibility(View.VISIBLE);
-            }
+        // Ensure both visible for the snap animation
+        if (panelExpanded.getVisibility() != View.VISIBLE) {
+            panelExpanded.setAlpha(collapse ? 1f : 0f);
+            panelExpanded.setVisibility(View.VISIBLE);
+        }
+        if (panelMinimized.getVisibility() != View.VISIBLE) {
+            panelMinimized.setAlpha(collapse ? 0f : 1f);
+            panelMinimized.setVisibility(View.VISIBLE);
+        }
 
-            // Hardware layers: GPU composites the alpha fade — no CPU redraws per frame
-            panelExpanded.setLayerType(View.LAYER_TYPE_HARDWARE, null);
-            panelMinimized.setLayerType(View.LAYER_TYPE_HARDWARE, null);
-
+        if (collapse) {
             panelExpanded.animate().alpha(0f).setDuration(DURATION)
-                .withEndAction(() -> {
-                    panelExpanded.setVisibility(View.GONE);
-                    panelExpanded.setLayerType(View.LAYER_TYPE_NONE, null);
-                    panelMinimized.setLayerType(View.LAYER_TYPE_NONE, null);
-                })
-                .start();
-
+                    .withEndAction(() -> panelExpanded.setVisibility(View.GONE))
+                    .start();
             panelMinimized.animate().alpha(1f).setDuration(DURATION).start();
-
         } else {
-            if (panelExpanded.getVisibility() != View.VISIBLE) {
-                panelExpanded.setAlpha(0f);
-                panelExpanded.setVisibility(View.VISIBLE);
-            }
-
-            panelExpanded.setLayerType(View.LAYER_TYPE_HARDWARE, null);
-            panelMinimized.setLayerType(View.LAYER_TYPE_HARDWARE, null);
-
             panelMinimized.animate().alpha(0f).setDuration(DURATION)
-                .withEndAction(() -> {
-                    panelMinimized.setVisibility(View.GONE);
-                    panelExpanded.setLayerType(View.LAYER_TYPE_NONE, null);
-                    panelMinimized.setLayerType(View.LAYER_TYPE_NONE, null);
-                })
-                .start();
-
+                    .withEndAction(() -> panelMinimized.setVisibility(View.GONE))
+                    .start();
             panelExpanded.animate().alpha(1f).setDuration(DURATION).start();
         }
+    }
+
+    // Keep setHeroMinimized for the tap-toggle on the panel header
+    private void setHeroMinimized(final boolean minimize) {
+        snapHero(minimize);
     }
 
     private int dpToPx(int dp) {
@@ -275,12 +282,13 @@ public class PodcastDetailActivity extends Activity {
         }
         tvEpisodesStatus.setText("Fetching feed...");
         tvStatusMini.setText("Fetching feed...");
+        // Capture itunesId at the time loadEpisodes is called
+        final String capturedItunesId = getIntent().getStringExtra("itunes_id");
         new Thread(new Runnable() {
             @Override
             public void run() {
                 try {
-                    final RssFetcher.FeedResult feed = RssFetcher.fetchFeed(feedUrl);
-
+                    final RssFetcher.FeedResult feed = RssFetcher.fetchFeed(feedUrl, capturedItunesId);
                     // Always prefer the RSS feed's own channel image over whatever gpodder/search
                     // returned (gpodder URLs are often HTTPS CDNs that fail on BB10 SSL).
                     // If RSS has no image, fall back to what we already have.
