@@ -31,14 +31,21 @@
             android:layout_height="wrap_content"
             android:layout_weight="1"
             android:gravity="center"
-            android:text="PodBB [now playing]"
+            android:text="[now playing]"
             android:textColor="@color/bb_text_white"
             android:textSize="15sp"
             android:textStyle="bold" />
 
-        <View
-            android:layout_width="60dp"
-            android:layout_height="1dp" />
+        <Button
+            android:id="@+id/btnCaptions"
+            android:layout_width="wrap_content"
+            android:layout_height="32dp"
+            android:text="[CC]"
+            android:textColor="@color/bb_text_dim"
+            android:background="@drawable/btn_bb_action"
+            android:textSize="12sp"
+            android:paddingLeft="10dp"
+            android:paddingRight="10dp" />
     </LinearLayout>
 
     <View
@@ -204,6 +211,36 @@
                 android:background="@drawable/btn_bb_action"
                 android:textSize="12sp"
                 android:layout_marginTop="16dp" />
+
+            <!-- Captions panel: hidden by default, shown when user taps [CC] -->
+            <LinearLayout
+                android:id="@+id/panelCaptions"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:orientation="vertical"
+                android:visibility="gone"
+                android:layout_marginTop="16dp"
+                android:background="@color/header_bg"
+                android:padding="12dp">
+
+                <TextView
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:text="[CC] TRANSCRIPT"
+                    android:textColor="@color/bb_blue"
+                    android:textSize="10sp"
+                    android:textStyle="bold"
+                    android:layout_marginBottom="8dp" />
+
+                <TextView
+                    android:id="@+id/tvCaptionsContent"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:text="No transcript available.\n\nTranscripts load from the podcast RSS feed. Try a podcast that publishes transcripts."
+                    android:textColor="@color/text_secondary"
+                    android:textSize="12sp"
+                    android:lineSpacingMultiplier="1.4" />
+            </LinearLayout>
 
         </LinearLayout>
     </ScrollView>

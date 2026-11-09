@@ -29,6 +29,9 @@ public class PlayerActivity extends Activity {
     private SeekBar seekBar;
     private Button btnPlayPause;
     private Button btnDownload;
+    private Button btnCaptions;
+    private android.widget.LinearLayout panelCaptions;
+    private boolean captionsVisible = false;
 
     private float currentSpeed = 1.0f;
     private long episodeId;
@@ -86,9 +89,22 @@ public class PlayerActivity extends Activity {
         seekBar = (SeekBar) findViewById(R.id.seekBar);
         btnPlayPause = (Button) findViewById(R.id.btnPlayPause);
         btnDownload = (Button) findViewById(R.id.btnDownload);
+        btnCaptions = (Button) findViewById(R.id.btnCaptions);
+        panelCaptions = (android.widget.LinearLayout) findViewById(R.id.panelCaptions);
 
         Button btnBack = (Button) findViewById(R.id.btnBack);
         btnBack.setOnClickListener(v -> finish());
+
+        // [CC] button — toggle captions panel visibility
+        if (btnCaptions != null) {
+            btnCaptions.setOnClickListener(v -> {
+                captionsVisible = !captionsVisible;
+                if (panelCaptions != null) {
+                    panelCaptions.setVisibility(captionsVisible ? android.view.View.VISIBLE : android.view.View.GONE);
+                }
+                btnCaptions.setTextColor(captionsVisible ? 0xFF00A8DF : 0xFF888888);
+            });
+        }
 
         tvEpisodeTitle.setText(episodeTitle != null ? episodeTitle : "Episode");
         tvPodcastName.setText(podcastTitle != null ? podcastTitle : "Podcast");

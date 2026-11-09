@@ -1,8 +1,5 @@
 package com.podbb.app;
 
-import android.animation.Animator;
-import android.animation.AnimatorListenerAdapter;
-import android.animation.ValueAnimator;
 import android.app.Activity;
 import android.content.Intent;
 import android.os.Bundle;
@@ -26,11 +23,10 @@ public class PodcastDetailActivity extends Activity {
     private Button btnSubscribe;
 
     // Sticky podcast panel & modes
-    private LinearLayout panelStickyPodcast;
+    private View panelStickyPodcast;
     private View panelExpanded;
     private View panelMinimized;
     private boolean isMinimized = false;
-    private ValueAnimator currentAnimator;
 
     // Expanded views
     private ImageView imgPodcastCover;
@@ -75,7 +71,7 @@ public class PodcastDetailActivity extends Activity {
         ListView listEpisodes = (ListView) findViewById(R.id.listEpisodes);
 
         // Sticky Podcast Panel
-        panelStickyPodcast = (LinearLayout) findViewById(R.id.panelStickyPodcast);
+        panelStickyPodcast = (View) findViewById(R.id.panelStickyPodcast);
         panelExpanded = findViewById(R.id.panelExpanded);
         panelMinimized = findViewById(R.id.panelMinimized);
 
@@ -199,70 +195,33 @@ public class PodcastDetailActivity extends Activity {
         if (this.isMinimized == minimize) return;
         this.isMinimized = minimize;
 
-        // Cancel any in-progress ViewPropertyAnimator on both panels
+        // Cancel any running animation
         panelExpanded.animate().cancel();
         panelMinimized.animate().cancel();
 
-        final int DURATION = 230;
-        final int SLIDE_DP = dpToPx(10);
-
-        // GPU-accelerate both panels for the duration of the animation
-        panelExpanded.setLayerType(View.LAYER_TYPE_HARDWARE, null);
-        panelMinimized.setLayerType(View.LAYER_TYPE_HARDWARE, null);
+        final int DURATION = 180;
 
         if (minimize) {
-            // ---- Expanded → Minimized ----
-            // Minimized: start below, fade in and slide up into place
+            // Show minimized at alpha=0 first, then fade in while fading out expanded
             panelMinimized.setAlpha(0f);
-            panelMinimized.setTranslationY(SLIDE_DP);
             panelMinimized.setVisibility(View.VISIBLE);
 
-            // Fade out + slide up the expanded hero
-            panelExpanded.animate()
-                .alpha(0f)
-                .translationY(-SLIDE_DP)
-                .setDuration(DURATION)
-                .withEndAction(() -> {
-                    panelExpanded.setVisibility(View.GONE);
-                    panelExpanded.setTranslationY(0f);
-                    panelExpanded.setLayerType(View.LAYER_TYPE_NONE, null);
-                })
+            panelExpanded.animate().alpha(0f).setDuration(DURATION)
+                .withEndAction(() -> panelExpanded.setVisibility(View.GONE))
                 .start();
 
-            // Fade in + slide up the minimized card
-            panelMinimized.animate()
-                .alpha(1f)
-                .translationY(0f)
-                .setDuration(DURATION)
-                .withEndAction(() -> panelMinimized.setLayerType(View.LAYER_TYPE_NONE, null))
-                .start();
+            panelMinimized.animate().alpha(1f).setDuration(DURATION).start();
 
         } else {
-            // ---- Minimized → Expanded ----
-            // Expanded: start above, fade in and slide down into place
+            // Show expanded at alpha=0 first, then fade in while fading out minimized
             panelExpanded.setAlpha(0f);
-            panelExpanded.setTranslationY(-SLIDE_DP);
             panelExpanded.setVisibility(View.VISIBLE);
 
-            // Fade out + slide down the minimized card
-            panelMinimized.animate()
-                .alpha(0f)
-                .translationY(SLIDE_DP)
-                .setDuration(DURATION)
-                .withEndAction(() -> {
-                    panelMinimized.setVisibility(View.GONE);
-                    panelMinimized.setTranslationY(0f);
-                    panelMinimized.setLayerType(View.LAYER_TYPE_NONE, null);
-                })
+            panelMinimized.animate().alpha(0f).setDuration(DURATION)
+                .withEndAction(() -> panelMinimized.setVisibility(View.GONE))
                 .start();
 
-            // Fade in + slide down the expanded hero
-            panelExpanded.animate()
-                .alpha(1f)
-                .translationY(0f)
-                .setDuration(DURATION)
-                .withEndAction(() -> panelExpanded.setLayerType(View.LAYER_TYPE_NONE, null))
-                .start();
+            panelExpanded.animate().alpha(1f).setDuration(DURATION).start();
         }
     }
 

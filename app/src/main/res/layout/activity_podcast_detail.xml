@@ -58,15 +58,19 @@
         android:layout_height="1dp"
         android:background="@color/divider" />
 
-    <!-- Sticky Podcast Panel (stays still at top, minimizes smoothly on scroll into search-result card shape) -->
-    <LinearLayout
+    <!--
+      Sticky Podcast Panel.
+      FrameLayout so both children STACK (not stack vertically).
+      Only ONE is VISIBLE at a time — the other is GONE (takes no space).
+      This means zero height-jump during the crossfade animation.
+    -->
+    <FrameLayout
         android:id="@+id/panelStickyPodcast"
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
-        android:orientation="vertical"
         android:background="@color/surface">
 
-        <!-- 1. EXPANDED HERO VIEW (initial unscrolled state) -->
+        <!-- 1. EXPANDED HERO VIEW (default, unscrolled state) -->
         <LinearLayout
             android:id="@+id/panelExpanded"
             android:layout_width="match_parent"
@@ -162,7 +166,7 @@
             </LinearLayout>
         </LinearLayout>
 
-        <!-- 2. MINIMIZED COMPACT VIEW (exact shape as item_search_result) -->
+        <!-- 2. MINIMIZED COMPACT VIEW (same shape as search result card) — starts GONE -->
         <LinearLayout
             android:id="@+id/panelMinimized"
             android:layout_width="match_parent"
@@ -241,11 +245,12 @@
         <View
             android:layout_width="match_parent"
             android:layout_height="1dp"
-            android:background="@color/divider" />
+            android:background="@color/divider"
+            android:layout_gravity="bottom" />
 
-    </LinearLayout>
+    </FrameLayout>
 
-    <!-- Scrollable Episode List (episodes roll underneath the sticky panel) -->
+    <!-- Scrollable Episode List -->
     <ListView
         android:id="@+id/listEpisodes"
         android:layout_width="match_parent"
