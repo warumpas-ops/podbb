@@ -64,8 +64,9 @@ public class ImageLoader {
             return;
         }
 
-        // Always set placeholder while loading (avoids stale/blank view)
-        if (placeholderRes != 0) {
+        // Only set placeholder if image view doesn't already have an image
+        // (prevents valid cover from disappearing when updating or re-fetching)
+        if (placeholderRes != 0 && imageView.getDrawable() == null) {
             imageView.setImageResource(placeholderRes);
         }
 

@@ -14,8 +14,8 @@ import java.util.List;
 public class PodcastSearchEngine {
 
     /**
-     * Search podcasts using gpodder.net over plain HTTP.
-     * Plain HTTP bypasses all expired CA certificates and TLS 1.2 handshake issues on BlackBerry 10!
+     * Search podcasts using Apple iTunes Podcast Search API first (over 3M+ active shows),
+     * with seamless fallback to gpodder.net.
      */
     public static List<Podcast> search(String query) throws Exception {
         List<Podcast> results = new ArrayList<>();
@@ -37,49 +37,109 @@ public class PodcastSearchEngine {
             return results;
         }
 
-        String encoded = URLEncoder.encode(query, "UTF-8");
-        // Using plain HTTP endpoint: http://gpodder.net/search.json?q=...
-        String urlStr = "http://gpodder.net/search.json?q=" + encoded;
+        // Strategy 1: Apple iTunes Podcast Search API (global, up-to-date, canonical feed URLs)
+        try {
+            String encoded = URLEncoder.encode(query, "UTF-8");
+            String itunesUrl = "https://itunes.apple.com/search?term=" + encoded + "&entity=podcast&limit=30";
+            String jsonStr = HttpHelper.fetchString(itunesUrl);
+            JSONObject root = new JSONObject(jsonStr);
+            JSONArray items = root.optJSONArray("results");
 
-        String jsonStr = fetchHttpJson(urlStr);
-        JSONArray items = new JSONArray(jsonStr);
+            if (items != null && items.length() > 0) {
+                for (int i = 0; i < items.length(); i++) {
+                    JSONObject obj = items.getJSONObject(i);
+                    String feedUrl = obj.optString("feedUrl", "");
+                    if (feedUrl.isEmpty()) continue;
 
-        for (int i = 0; i < items.length(); i++) {
-            JSONObject obj = items.getJSONObject(i);
-            String feedUrl = obj.optString("url", "");
-            if (feedUrl.isEmpty()) continue;
+                    String title = obj.optString("collectionName", obj.optString("trackName", "Podcast"));
+                    String author = obj.optString("artistName", "");
+                    String desc = obj.optString("primaryGenreName", "Podcast");
 
-            String title = obj.optString("title", "Unknown Podcast");
-            String author = obj.optString("author", "");
-            String desc = obj.optString("description", "");
-            // Prefer logo_url (direct CDN link), fall back to scaled_logo_url (gpodder proxy - has redirects)
-            String logo = obj.optString("logo_url", "");
-            if (logo.isEmpty()) logo = obj.optString("scaled_logo_url", "");
-            String id = String.valueOf(feedUrl.hashCode());
+                    // Prefer high resolution 600x600 artwork, fallback to 100x100
+                    String logo = obj.optString("artworkUrl600", "");
+                    if (logo.isEmpty()) logo = obj.optString("artworkUrl100", "");
+                    if (logo.isEmpty()) logo = obj.optString("artworkUrl60", "");
 
-            Podcast p = new Podcast(title, author, desc, logo, feedUrl, id);
-            results.add(p);
-        }
+                    String collectionId = String.valueOf(obj.optLong("collectionId", 0));
+                    if ("0".equals(collectionId)) collectionId = String.valueOf(feedUrl.hashCode());
 
-        // If gpodder returned empty, try fallback to top list matching query or simple query
-        if (results.isEmpty()) {
-            List<Podcast> top = getToplist();
-            for (Podcast tp : top) {
-                if (tp.title.toLowerCase().contains(query.toLowerCase()) || 
-                    (tp.author != null && tp.author.toLowerCase().contains(query.toLowerCase()))) {
-                    results.add(tp);
+                    Podcast p = new Podcast(title, author, desc, logo, feedUrl, collectionId);
+                    results.add(p);
                 }
             }
+        } catch (Exception ignored) {}
+
+        // If iTunes returned results, return them
+        if (!results.isEmpty()) {
+            return results;
         }
+
+        // Strategy 2: gpodder.net plain HTTP search (fallback)
+        try {
+            String encoded = URLEncoder.encode(query, "UTF-8");
+            String urlStr = "http://gpodder.net/search.json?q=" + encoded;
+            String jsonStr = fetchHttpJson(urlStr);
+            JSONArray items = new JSONArray(jsonStr);
+
+            for (int i = 0; i < items.length(); i++) {
+                JSONObject obj = items.getJSONObject(i);
+                String feedUrl = obj.optString("url", "");
+                if (feedUrl.isEmpty()) continue;
+
+                String title = obj.optString("title", "Unknown Podcast");
+                String author = obj.optString("author", "");
+                String desc = obj.optString("description", "");
+                String logo = obj.optString("logo_url", "");
+                if (logo.isEmpty()) logo = obj.optString("scaled_logo_url", "");
+                String id = String.valueOf(feedUrl.hashCode());
+
+                Podcast p = new Podcast(title, author, desc, logo, feedUrl, id);
+                results.add(p);
+            }
+        } catch (Exception ignored) {}
 
         return results;
     }
 
     /**
-     * Fetches top podcasts from gpodder toplist over plain HTTP.
+     * Fetches top podcasts: tries iTunes general popular podcasts first, then gpodder toplist.
      */
     public static List<Podcast> getToplist() {
         List<Podcast> results = new ArrayList<>();
+
+        // Try iTunes top podcasts
+        try {
+            String itunesUrl = "https://itunes.apple.com/search?term=podcast&entity=podcast&limit=30";
+            String jsonStr = HttpHelper.fetchString(itunesUrl);
+            JSONObject root = new JSONObject(jsonStr);
+            JSONArray items = root.optJSONArray("results");
+
+            if (items != null && items.length() > 0) {
+                for (int i = 0; i < items.length(); i++) {
+                    JSONObject obj = items.getJSONObject(i);
+                    String feedUrl = obj.optString("feedUrl", "");
+                    if (feedUrl.isEmpty()) continue;
+
+                    String title = obj.optString("collectionName", obj.optString("trackName", "Podcast"));
+                    String author = obj.optString("artistName", "");
+                    String desc = obj.optString("primaryGenreName", "Top Podcast");
+
+                    String logo = obj.optString("artworkUrl600", "");
+                    if (logo.isEmpty()) logo = obj.optString("artworkUrl100", "");
+                    if (logo.isEmpty()) logo = obj.optString("artworkUrl60", "");
+
+                    String collectionId = String.valueOf(obj.optLong("collectionId", 0));
+                    if ("0".equals(collectionId)) collectionId = String.valueOf(feedUrl.hashCode());
+
+                    Podcast p = new Podcast(title, author, desc, logo, feedUrl, collectionId);
+                    results.add(p);
+                }
+            }
+        } catch (Exception ignored) {}
+
+        if (!results.isEmpty()) return results;
+
+        // Fallback: gpodder toplist
         try {
             String urlStr = "http://gpodder.net/toplist/30.json";
             String jsonStr = fetchHttpJson(urlStr);
@@ -93,15 +153,15 @@ public class PodcastSearchEngine {
                 String title = obj.optString("title", "Podcast");
                 String author = obj.optString("author", "");
                 String desc = obj.optString("description", "");
-                // Prefer logo_url (direct CDN link), fall back to scaled_logo_url (gpodder proxy - has redirects)
-            String logo = obj.optString("logo_url", "");
-            if (logo.isEmpty()) logo = obj.optString("scaled_logo_url", "");
+                String logo = obj.optString("logo_url", "");
+                if (logo.isEmpty()) logo = obj.optString("scaled_logo_url", "");
                 String id = String.valueOf(feedUrl.hashCode());
 
                 Podcast p = new Podcast(title, author, desc, logo, feedUrl, id);
                 results.add(p);
             }
         } catch (Exception ignored) {}
+
         return results;
     }
 
