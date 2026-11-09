@@ -143,28 +143,19 @@ public class PodcastDetailActivity extends Activity {
         listEpisodes.setAdapter(adapter);
 
         // When scrolling the episodes, smoothly minimize the hero into search result shape.
-        // We use BOTH callbacks:
-        //  - onScrollStateChanged: fires when user lifts finger (IDLE) or starts flinging (FLING).
-        //    This is the cheapest place to trigger the transition.
-        //  - onScroll: only used to track whether we're at the very top (firstVisibleItem==0, top>=0)
-        //    so we can re-expand. We read firstChild.getTop() here — cheap, no layout pass triggered.
-        //
-        // Why not pure onScroll? onScroll fires every pixel while scrolling (60fps) — triggering
-        // ViewPropertyAnimator that often would cause repeated UI work and jank on BB10's slow CPU.
-        final boolean[] atTop = {true};
-
+        // Uses HYSTERESIS (dead zone) so slow scrolling never flaps or jitters back and forth:
+        // - To COLLAPSE: User must scroll down past 32dp (or past the first item).
+        // - To EXPAND: User must scroll back up until within 6dp of the very top.
+        // In the dead zone (-6dp to -32dp), the state never changes.
         listEpisodes.setOnScrollListener(new AbsListView.OnScrollListener() {
             @Override
             public void onScrollStateChanged(AbsListView view, int scrollState) {
-                if (scrollState == SCROLL_STATE_TOUCH_SCROLL || scrollState == SCROLL_STATE_FLING) {
-                    // User started scrolling — if not at top, collapse immediately
-                    if (!atTop[0]) {
-                        setHeroMinimized(true);
-                    }
-                } else if (scrollState == SCROLL_STATE_IDLE) {
-                    // Scrolling stopped — check if we're back at top
-                    if (atTop[0]) {
-                        setHeroMinimized(false);
+                if (scrollState == SCROLL_STATE_IDLE) {
+                    if (view.getFirstVisiblePosition() == 0) {
+                        View firstChild = view.getChildAt(0);
+                        if (firstChild != null && firstChild.getTop() >= -dpToPx(6)) {
+                            setHeroMinimized(false);
+                        }
                     }
                 }
             }
@@ -174,12 +165,17 @@ public class PodcastDetailActivity extends Activity {
                 if (totalItemCount == 0) return;
                 View firstChild = view.getChildAt(0);
                 int top = (firstChild != null) ? firstChild.getTop() : 0;
-                boolean nowAtTop = (firstVisibleItem == 0 && top >= -8);
-                if (nowAtTop != atTop[0]) {
-                    atTop[0] = nowAtTop;
-                    // Snap expand immediately when user scrolls back to top (even while still touching)
-                    if (nowAtTop) setHeroMinimized(false);
-                    else setHeroMinimized(true);
+
+                if (!isMinimized) {
+                    // Currently expanded: only collapse once clearly scrolled down past 32dp
+                    if (firstVisibleItem > 0 || top < -dpToPx(32)) {
+                        setHeroMinimized(true);
+                    }
+                } else {
+                    // Currently collapsed: only expand once clearly back at the top within 6dp
+                    if (firstVisibleItem == 0 && top >= -dpToPx(6)) {
+                        setHeroMinimized(false);
+                    }
                 }
             }
         });
@@ -222,11 +218,13 @@ public class PodcastDetailActivity extends Activity {
         panelExpanded.animate().cancel();
         panelMinimized.animate().cancel();
 
-        final int DURATION = 160; // Slightly snappier feels less laggy on BB10
+        final int DURATION = 170;
 
         if (minimize) {
-            panelMinimized.setAlpha(0f);
-            panelMinimized.setVisibility(View.VISIBLE);
+            if (panelMinimized.getVisibility() != View.VISIBLE) {
+                panelMinimized.setAlpha(0f);
+                panelMinimized.setVisibility(View.VISIBLE);
+            }
 
             // Hardware layers: GPU composites the alpha fade — no CPU redraws per frame
             panelExpanded.setLayerType(View.LAYER_TYPE_HARDWARE, null);
@@ -243,8 +241,10 @@ public class PodcastDetailActivity extends Activity {
             panelMinimized.animate().alpha(1f).setDuration(DURATION).start();
 
         } else {
-            panelExpanded.setAlpha(0f);
-            panelExpanded.setVisibility(View.VISIBLE);
+            if (panelExpanded.getVisibility() != View.VISIBLE) {
+                panelExpanded.setAlpha(0f);
+                panelExpanded.setVisibility(View.VISIBLE);
+            }
 
             panelExpanded.setLayerType(View.LAYER_TYPE_HARDWARE, null);
             panelMinimized.setLayerType(View.LAYER_TYPE_HARDWARE, null);
