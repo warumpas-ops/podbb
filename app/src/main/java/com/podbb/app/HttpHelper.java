@@ -30,7 +30,7 @@ import javax.net.ssl.X509TrustManager;
 
 public class HttpHelper {
 
-    private static final String USER_AGENT = "PodBB/2.0 (BlackBerry 10; Android 4.3; Podcast Client)";
+    private static final String USER_AGENT = "Mozilla/5.0 (Linux; Android 10; K) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Mobile Safari/537.36";
     private static SSLSocketFactory sslSocketFactory;
     private static LruCache<String, Bitmap> memoryCache;
 
@@ -146,6 +146,9 @@ public class HttpHelper {
     }
 
     public static HttpURLConnection openConnection(String urlStr) throws Exception {
+        if (urlStr != null) {
+            urlStr = urlStr.trim().replace(" ", "%20");
+        }
         URL url = new URL(urlStr);
         HttpURLConnection conn = (HttpURLConnection) url.openConnection();
         if (conn instanceof HttpsURLConnection && sslSocketFactory != null) {
@@ -181,6 +184,17 @@ public class HttpHelper {
                 // NOTE: Accept-Encoding is NOT set here — RSS caller sets it after getting the conn
                 // Image requests must NOT send Accept-Encoding: identity (breaks CDNs)
                 status = conn.getResponseCode();
+
+                // If WAF / CDN blocked request with 403 Forbidden or 406 Not Acceptable, retry once with standard Desktop Chrome UA & */* Accept
+                if (status == 403 || status == 406) {
+                    try {
+                        conn.disconnect();
+                        conn = openConnection(currentUrl);
+                        conn.setRequestProperty("User-Agent", "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36");
+                        conn.setRequestProperty("Accept", "*/*");
+                        status = conn.getResponseCode();
+                    } catch (Exception ignored) {}
+                }
             } catch (javax.net.ssl.SSLException | java.security.GeneralSecurityException sslErr) {
                 // HTTPS failed — TLS/cipher mismatch. Try plain HTTP fallback.
                 if (conn != null) { try { conn.disconnect(); } catch (Exception ignored) {} }

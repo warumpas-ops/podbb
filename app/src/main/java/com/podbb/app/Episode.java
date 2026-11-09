@@ -13,8 +13,10 @@ public class Episode {
     public boolean downloaded;
     public boolean listened;
     public int positionSeconds;
-    public String podcastTitle; // transient, for display
-    public String imageUrl;     // transient, episode-level art (itunes:image)
+    public String podcastTitle;    // transient, for display
+    public String imageUrl;        // transient, episode-level art (itunes:image)
+    public String transcriptUrl;   // transient, from <podcast:transcript url="...">
+    public String transcriptType;  // transient, e.g. "text/vtt", "application/json"
 
     public Episode() {}
 

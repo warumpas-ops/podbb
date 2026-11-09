@@ -198,6 +198,8 @@ public class PodcastDetailActivity extends Activity {
             intent.putExtra("podcast_title", title);
             intent.putExtra("podcast_artwork", resolvedImageUrl != null ? resolvedImageUrl : (podcast.imageUrl != null ? podcast.imageUrl : ""));
             intent.putExtra("podcast_feed_url", feedUrl);
+            intent.putExtra("transcript_url", ep.transcriptUrl != null ? ep.transcriptUrl : "");
+            intent.putExtra("transcript_type", ep.transcriptType != null ? ep.transcriptType : "");
             startActivity(intent);
 
             // Save state in background

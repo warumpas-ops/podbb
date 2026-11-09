@@ -46,16 +46,9 @@ public class RssFetcher {
     private static FeedResult doFetch(String feedUrl) throws Exception {
         HttpURLConnection conn = HttpHelper.openWithRedirects(
                 feedUrl,
-                "application/rss+xml,application/atom+xml,application/xml,text/xml;q=0.9,*/*;q=0.8",
-                "PodBB/2.0 (BlackBerry 10; Android 4.3; Podcast Client)"
+                "text/xml,application/xml,application/rss+xml,application/atom+xml,*/*;q=0.8",
+                null
         );
-
-        // For RSS text fetches, tell server NOT to compress — we handle GZIP ourselves if needed.
-        // This is set after openWithRedirects so it only applies to RSS (not image) connections.
-        // Note: on Android, setRequestProperty after connect is a no-op — the header was already
-        // sent. We set it here as a belt-and-suspenders approach; the real guard is that we
-        // removed it from openWithRedirects (which is shared with image fetching). Our
-        // readAndDecompress() already auto-detects and handles GZIP anyway.
 
         // getResponseCode() is safe to call here — HttpHelper.openWithRedirects already
         // called it internally and returns the final 2xx connection. Android caches the value.
@@ -65,8 +58,7 @@ public class RssFetcher {
             throw new Exception("HTTP " + code);
         }
 
-        // Buffer the entire response body — simpler and avoids PushbackInputStream edge-cases
-        // on BB10. 3MB cap is generous; real podcast feeds are typically <300KB.
+        // Buffer the response body. 20MB cap ensures large feeds with many episodes are never truncated.
         byte[] body;
         try {
             String contentEncoding = conn.getContentEncoding();
@@ -81,8 +73,6 @@ public class RssFetcher {
 
     /**
      * Reads all bytes from the stream, decompressing GZIP if needed.
-     * With Accept-Encoding: identity set in the request, GZIP should be rare,
-     * but we still handle it as a safety net.
      */
     private static byte[] readAndDecompress(InputStream raw, String contentEncoding) throws IOException {
         // Peek at first 2 bytes to auto-detect GZIP magic regardless of Content-Encoding
@@ -97,11 +87,11 @@ public class RssFetcher {
 
         InputStream in = isGzip ? new GZIPInputStream(bis) : bis;
 
-        ByteArrayOutputStream out = new ByteArrayOutputStream(32768);
+        ByteArrayOutputStream out = new ByteArrayOutputStream(65536);
         byte[] buf = new byte[8192];
         int read;
         int totalRead = 0;
-        final int maxBytes = 3 * 1024 * 1024; // 3MB cap
+        final int maxBytes = 20 * 1024 * 1024; // 20MB cap (large feeds won't be truncated)
 
         while ((read = in.read(buf)) != -1) {
             out.write(buf, 0, read);
@@ -113,7 +103,8 @@ public class RssFetcher {
 
     /**
      * Parse XML from a byte array, stripping UTF-8 BOM if present.
-     * Uses UTF-8 as the explicit charset if no XML declaration is found.
+     * If standard parsing fails (e.g. unescaped & in titles or descriptions),
+     * sanitizes unescaped entities and retries.
      */
     private static FeedResult parseXmlBytes(byte[] body) throws Exception {
         // Strip UTF-8 BOM (EF BB BF)
@@ -122,16 +113,28 @@ public class RssFetcher {
             offset = 3;
         }
 
-        java.io.ByteArrayInputStream bais = new java.io.ByteArrayInputStream(body, offset, body.length - offset);
-        return parseXmlStream(bais);
+        try {
+            java.io.ByteArrayInputStream bais = new java.io.ByteArrayInputStream(body, offset, body.length - offset);
+            XmlPullParser parser = Xml.newPullParser();
+            parser.setFeature(XmlPullParser.FEATURE_PROCESS_NAMESPACES, false);
+            parser.setInput(bais, null);
+            return parseXml(parser);
+        } catch (Exception e) {
+            // If raw parse failed (e.g. unescaped & in XML, entity error), sanitize & retry
+            try {
+                String xml = new String(body, offset, body.length - offset, "UTF-8");
+                xml = xml.replaceAll("&(?!(?:amp|lt|gt|quot|apos|#\\d+|#x[0-9a-fA-F]+);)", "&amp;");
+                XmlPullParser parser = Xml.newPullParser();
+                parser.setFeature(XmlPullParser.FEATURE_PROCESS_NAMESPACES, false);
+                parser.setInput(new java.io.StringReader(xml));
+                return parseXml(parser);
+            } catch (Exception ignored) {}
+            throw e;
+        }
     }
 
-    private static FeedResult parseXmlStream(InputStream in) throws Exception {
+    private static FeedResult parseXml(XmlPullParser parser) throws Exception {
         FeedResult result = new FeedResult();
-
-        XmlPullParser parser = Xml.newPullParser();
-        parser.setFeature(XmlPullParser.FEATURE_PROCESS_NAMESPACES, false);
-        parser.setInput(in, null); // Auto-detect from <?xml ...?> declaration or UTF-8
 
         Episode current = null;
         boolean inItem = false;
@@ -185,6 +188,14 @@ public class RssFetcher {
                             String href = parser.getAttributeValue(null, "href");
                             if (href != null && !href.trim().isEmpty() && current.imageUrl == null) {
                                 current.imageUrl = href.trim();
+                            }
+                        } else if (tag.contains("transcript")) {
+                            String url = parser.getAttributeValue(null, "url");
+                            if (url == null) url = parser.getAttributeValue(null, "href");
+                            String type = parser.getAttributeValue(null, "type");
+                            if (url != null && !url.trim().isEmpty() && current.transcriptUrl == null) {
+                                current.transcriptUrl = url.trim();
+                                current.transcriptType = (type != null) ? type.trim() : "text/vtt";
                             }
                         }
                     }
