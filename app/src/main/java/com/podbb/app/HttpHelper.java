@@ -154,8 +154,8 @@ public class HttpHelper {
         }
         conn.setRequestProperty("User-Agent", USER_AGENT);
         conn.setRequestProperty("Accept", "*/*");
-        conn.setConnectTimeout(15000);
-        conn.setReadTimeout(20000);
+        conn.setConnectTimeout(20000);  // 20s — BB10 radio can be slow to establish
+        conn.setReadTimeout(30000);     // 30s — large feeds on slow servers need breathing room
         conn.setInstanceFollowRedirects(false);
         return conn;
     }
@@ -182,7 +182,7 @@ public class HttpHelper {
                 // Image requests must NOT send Accept-Encoding: identity (breaks CDNs)
                 status = conn.getResponseCode();
             } catch (javax.net.ssl.SSLException | java.security.GeneralSecurityException sslErr) {
-                // If HTTPS failed on BB10 due to unsupported cipher, try plain HTTP fallback
+                // HTTPS failed — TLS/cipher mismatch. Try plain HTTP fallback.
                 if (conn != null) { try { conn.disconnect(); } catch (Exception ignored) {} }
                 if (currentUrl.startsWith("https://")) {
                     String httpUrl = currentUrl.replaceFirst("^https://", "http://");
@@ -194,6 +194,21 @@ public class HttpHelper {
                     }
                 }
                 throw sslErr;
+            } catch (IOException ioErr) {
+                // On BB10, some TLS failures surface as plain IOException (not SSLException).
+                // ONLY downgrade to HTTP if this was an HTTPS URL — for plain http:// let it throw
+                // (a plain http:// IOException is a real failure like timeout or connection refused).
+                if (conn != null) { try { conn.disconnect(); } catch (Exception ignored) {} }
+                if (currentUrl.startsWith("https://")) {
+                    String httpUrl = currentUrl.replaceFirst("^https://", "http://");
+                    if (!visited.contains(httpUrl)) {
+                        visited.add(currentUrl);
+                        currentUrl = httpUrl;
+                        redirectCount++;
+                        continue;
+                    }
+                }
+                throw ioErr;
             }
 
             if (status == HttpURLConnection.HTTP_MOVED_PERM ||

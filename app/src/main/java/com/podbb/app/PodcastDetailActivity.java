@@ -142,23 +142,44 @@ public class PodcastDetailActivity extends Activity {
         adapter = new EpisodeAdapter();
         listEpisodes.setAdapter(adapter);
 
-        // When scrolling the episodes, smoothly minimize the hero into search result shape
-        // and keep it still at the top while episodes scroll underneath it
+        // When scrolling the episodes, smoothly minimize the hero into search result shape.
+        // We use BOTH callbacks:
+        //  - onScrollStateChanged: fires when user lifts finger (IDLE) or starts flinging (FLING).
+        //    This is the cheapest place to trigger the transition.
+        //  - onScroll: only used to track whether we're at the very top (firstVisibleItem==0, top>=0)
+        //    so we can re-expand. We read firstChild.getTop() here — cheap, no layout pass triggered.
+        //
+        // Why not pure onScroll? onScroll fires every pixel while scrolling (60fps) — triggering
+        // ViewPropertyAnimator that often would cause repeated UI work and jank on BB10's slow CPU.
+        final boolean[] atTop = {true};
+
         listEpisodes.setOnScrollListener(new AbsListView.OnScrollListener() {
             @Override
-            public void onScrollStateChanged(AbsListView view, int scrollState) {}
+            public void onScrollStateChanged(AbsListView view, int scrollState) {
+                if (scrollState == SCROLL_STATE_TOUCH_SCROLL || scrollState == SCROLL_STATE_FLING) {
+                    // User started scrolling — if not at top, collapse immediately
+                    if (!atTop[0]) {
+                        setHeroMinimized(true);
+                    }
+                } else if (scrollState == SCROLL_STATE_IDLE) {
+                    // Scrolling stopped — check if we're back at top
+                    if (atTop[0]) {
+                        setHeroMinimized(false);
+                    }
+                }
+            }
 
             @Override
             public void onScroll(AbsListView view, int firstVisibleItem, int visibleItemCount, int totalItemCount) {
                 if (totalItemCount == 0) return;
                 View firstChild = view.getChildAt(0);
                 int top = (firstChild != null) ? firstChild.getTop() : 0;
-
-                // When at the very top of the list, expand back to full hero
-                if (firstVisibleItem == 0 && top >= -15) {
-                    setHeroMinimized(false);
-                } else if (firstVisibleItem > 0 || top < -35) {
-                    setHeroMinimized(true);
+                boolean nowAtTop = (firstVisibleItem == 0 && top >= -8);
+                if (nowAtTop != atTop[0]) {
+                    atTop[0] = nowAtTop;
+                    // Snap expand immediately when user scrolls back to top (even while still touching)
+                    if (nowAtTop) setHeroMinimized(false);
+                    else setHeroMinimized(true);
                 }
             }
         });
@@ -199,26 +220,39 @@ public class PodcastDetailActivity extends Activity {
         panelExpanded.animate().cancel();
         panelMinimized.animate().cancel();
 
-        final int DURATION = 180;
+        final int DURATION = 160; // Slightly snappier feels less laggy on BB10
 
         if (minimize) {
-            // Show minimized at alpha=0 first, then fade in while fading out expanded
             panelMinimized.setAlpha(0f);
             panelMinimized.setVisibility(View.VISIBLE);
 
+            // Hardware layers: GPU composites the alpha fade — no CPU redraws per frame
+            panelExpanded.setLayerType(View.LAYER_TYPE_HARDWARE, null);
+            panelMinimized.setLayerType(View.LAYER_TYPE_HARDWARE, null);
+
             panelExpanded.animate().alpha(0f).setDuration(DURATION)
-                .withEndAction(() -> panelExpanded.setVisibility(View.GONE))
+                .withEndAction(() -> {
+                    panelExpanded.setVisibility(View.GONE);
+                    panelExpanded.setLayerType(View.LAYER_TYPE_NONE, null);
+                    panelMinimized.setLayerType(View.LAYER_TYPE_NONE, null);
+                })
                 .start();
 
             panelMinimized.animate().alpha(1f).setDuration(DURATION).start();
 
         } else {
-            // Show expanded at alpha=0 first, then fade in while fading out minimized
             panelExpanded.setAlpha(0f);
             panelExpanded.setVisibility(View.VISIBLE);
 
+            panelExpanded.setLayerType(View.LAYER_TYPE_HARDWARE, null);
+            panelMinimized.setLayerType(View.LAYER_TYPE_HARDWARE, null);
+
             panelMinimized.animate().alpha(0f).setDuration(DURATION)
-                .withEndAction(() -> panelMinimized.setVisibility(View.GONE))
+                .withEndAction(() -> {
+                    panelMinimized.setVisibility(View.GONE);
+                    panelExpanded.setLayerType(View.LAYER_TYPE_NONE, null);
+                    panelMinimized.setLayerType(View.LAYER_TYPE_NONE, null);
+                })
                 .start();
 
             panelExpanded.animate().alpha(1f).setDuration(DURATION).start();
