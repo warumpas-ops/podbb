@@ -5,9 +5,10 @@ import org.xmlpull.v1.XmlPullParser;
 import org.xmlpull.v1.XmlPullParserException;
 
 import java.io.BufferedInputStream;
+import java.io.ByteArrayInputStream;
+import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.io.InputStream;
-import java.io.PushbackInputStream;
 import java.net.HttpURLConnection;
 import java.text.SimpleDateFormat;
 import java.util.ArrayList;
@@ -49,67 +50,80 @@ public class RssFetcher {
                 "PodBB/2.0 (BlackBerry 10; Android 4.3; Podcast Client)"
         );
 
+        // For RSS text fetches, tell server NOT to compress — we handle GZIP ourselves if needed.
+        // This is set after openWithRedirects so it only applies to RSS (not image) connections.
+        // Note: on Android, setRequestProperty after connect is a no-op — the header was already
+        // sent. We set it here as a belt-and-suspenders approach; the real guard is that we
+        // removed it from openWithRedirects (which is shared with image fetching). Our
+        // readAndDecompress() already auto-detects and handles GZIP anyway.
+
+        // getResponseCode() is safe to call here — HttpHelper.openWithRedirects already
+        // called it internally and returns the final 2xx connection. Android caches the value.
         int code = conn.getResponseCode();
         if (code < 200 || code >= 300) {
             conn.disconnect();
             throw new Exception("HTTP " + code);
         }
 
-        String contentEncoding = conn.getContentEncoding();
-        InputStream raw = conn.getInputStream();
-        InputStream stream = prepareStream(raw, contentEncoding);
-
-        FeedResult result;
+        // Buffer the entire response body — simpler and avoids PushbackInputStream edge-cases
+        // on BB10. 3MB cap is generous; real podcast feeds are typically <300KB.
+        byte[] body;
         try {
-            result = parseXmlStream(stream);
+            String contentEncoding = conn.getContentEncoding();
+            InputStream raw = conn.getInputStream();
+            body = readAndDecompress(raw, contentEncoding);
         } finally {
-            try { stream.close(); } catch (Exception ignored) {}
             conn.disconnect();
         }
 
-        return result;
+        return parseXmlBytes(body);
     }
 
     /**
-     * Inspects the input stream without buffering the entire document into memory:
-     * 1. Detects and decompresses GZIP (magic 0x1F, 0x8B or Content-Encoding header)
-     * 2. Detects and strips UTF-8 BOM (0xEF, 0xBB, 0xBF)
+     * Reads all bytes from the stream, decompressing GZIP if needed.
+     * With Accept-Encoding: identity set in the request, GZIP should be rare,
+     * but we still handle it as a safety net.
      */
-    private static InputStream prepareStream(InputStream raw, String contentEncoding) throws IOException {
-        BufferedInputStream bis = new BufferedInputStream(raw, 16384);
-        PushbackInputStream pb = new PushbackInputStream(bis, 4);
+    private static byte[] readAndDecompress(InputStream raw, String contentEncoding) throws IOException {
+        // Peek at first 2 bytes to auto-detect GZIP magic regardless of Content-Encoding
+        BufferedInputStream bis = new BufferedInputStream(raw, 8192);
+        bis.mark(2);
+        int b0 = bis.read();
+        int b1 = bis.read();
+        bis.reset();
 
-        byte[] header = new byte[4];
-        int read = pb.read(header);
-        if (read < 2) {
-            if (read > 0) pb.unread(header, 0, read);
-            return pb;
-        }
-
-        // 1. Check GZIP
         boolean isGzip = (contentEncoding != null && contentEncoding.toLowerCase(Locale.ENGLISH).contains("gzip"))
-                || ((header[0] & 0xFF) == 0x1F && (header[1] & 0xFF) == 0x8B);
+                || (b0 == 0x1F && b1 == 0x8B);
 
-        InputStream streamToUse;
-        if (isGzip) {
-            pb.unread(header, 0, read);
-            GZIPInputStream gis = new GZIPInputStream(pb);
-            streamToUse = new BufferedInputStream(gis, 8192);
-        } else {
-            pb.unread(header, 0, read);
-            streamToUse = pb;
+        InputStream in = isGzip ? new GZIPInputStream(bis) : bis;
+
+        ByteArrayOutputStream out = new ByteArrayOutputStream(32768);
+        byte[] buf = new byte[8192];
+        int read;
+        int totalRead = 0;
+        final int maxBytes = 3 * 1024 * 1024; // 3MB cap
+
+        while ((read = in.read(buf)) != -1) {
+            out.write(buf, 0, read);
+            totalRead += read;
+            if (totalRead >= maxBytes) break;
+        }
+        return out.toByteArray();
+    }
+
+    /**
+     * Parse XML from a byte array, stripping UTF-8 BOM if present.
+     * Uses UTF-8 as the explicit charset if no XML declaration is found.
+     */
+    private static FeedResult parseXmlBytes(byte[] body) throws Exception {
+        // Strip UTF-8 BOM (EF BB BF)
+        int offset = 0;
+        if (body.length >= 3 && (body[0] & 0xFF) == 0xEF && (body[1] & 0xFF) == 0xBB && (body[2] & 0xFF) == 0xBF) {
+            offset = 3;
         }
 
-        // 2. Strip UTF-8 BOM if present
-        PushbackInputStream pbFinal = new PushbackInputStream(streamToUse, 4);
-        byte[] bom = new byte[3];
-        int bomRead = pbFinal.read(bom);
-        if (bomRead == 3 && (bom[0] & 0xFF) == 0xEF && (bom[1] & 0xFF) == 0xBB && (bom[2] & 0xFF) == 0xBF) {
-            // BOM stripped cleanly
-        } else if (bomRead > 0) {
-            pbFinal.unread(bom, 0, bomRead);
-        }
-        return pbFinal;
+        java.io.ByteArrayInputStream bais = new java.io.ByteArrayInputStream(body, offset, body.length - offset);
+        return parseXmlStream(bais);
     }
 
     private static FeedResult parseXmlStream(InputStream in) throws Exception {

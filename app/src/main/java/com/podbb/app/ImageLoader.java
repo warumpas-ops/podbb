@@ -64,8 +64,8 @@ public class ImageLoader {
             return;
         }
 
-        // Only set placeholder if ImageView does not already have an image
-        if (placeholderRes != 0 && imageView.getDrawable() == null) {
+        // Always set placeholder while loading (avoids stale/blank view)
+        if (placeholderRes != 0) {
             imageView.setImageResource(placeholderRes);
         }
 

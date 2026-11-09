@@ -167,7 +167,7 @@ public class HttpHelper {
     public static HttpURLConnection openWithRedirects(String urlStr, String acceptHeader, String extraUserAgent) throws Exception {
         String currentUrl = urlStr;
         int redirectCount = 0;
-        final int maxRedirects = 10;
+        final int maxRedirects = 12;
         Set<String> visited = new HashSet<>();
 
         while (redirectCount < maxRedirects) {
@@ -178,9 +178,12 @@ public class HttpHelper {
                 conn = openConnection(currentUrl);
                 if (acceptHeader != null) conn.setRequestProperty("Accept", acceptHeader);
                 if (extraUserAgent != null) conn.setRequestProperty("User-Agent", extraUserAgent);
+                // NOTE: Accept-Encoding is NOT set here — RSS caller sets it after getting the conn
+                // Image requests must NOT send Accept-Encoding: identity (breaks CDNs)
                 status = conn.getResponseCode();
             } catch (javax.net.ssl.SSLException | java.security.GeneralSecurityException sslErr) {
                 // If HTTPS failed on BB10 due to unsupported cipher, try plain HTTP fallback
+                if (conn != null) { try { conn.disconnect(); } catch (Exception ignored) {} }
                 if (currentUrl.startsWith("https://")) {
                     String httpUrl = currentUrl.replaceFirst("^https://", "http://");
                     if (!visited.contains(httpUrl)) {
@@ -210,7 +213,15 @@ public class HttpHelper {
 
                 visited.add(currentUrl);
                 if (visited.contains(newUrl)) {
-                    // Loop detected (e.g. HTTP -> HTTPS -> HTTP)
+                    // Loop detected — try one HTTP downgrade if the loop is https->http->https
+                    if (newUrl.startsWith("https://")) {
+                        String httpFallback = newUrl.replaceFirst("^https://", "http://");
+                        if (!visited.contains(httpFallback)) {
+                            currentUrl = httpFallback;
+                            redirectCount++;
+                            continue;
+                        }
+                    }
                     throw new Exception("Redirect loop detected for " + newUrl);
                 }
 

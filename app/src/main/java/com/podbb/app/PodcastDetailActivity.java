@@ -44,7 +44,7 @@ public class PodcastDetailActivity extends Activity {
     private ImageLoader imageLoader;
     private boolean isSubscribed = false;
     // Best resolved cover URL — updated from RSS feed after load, passed to PlayerActivity
-    private String resolvedImageUrl = null;
+    private volatile String resolvedImageUrl = null;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -243,18 +243,19 @@ public class PodcastDetailActivity extends Activity {
                 try {
                     final RssFetcher.FeedResult feed = RssFetcher.fetchFeed(feedUrl);
 
-                    // Only replace cover if we didn't have one from search/library
-                    if (podcast.imageUrl == null || podcast.imageUrl.isEmpty()) {
-                        if (feed.channelImageUrl != null && !feed.channelImageUrl.isEmpty()) {
-                            podcast.imageUrl = feed.channelImageUrl;
-                            resolvedImageUrl = feed.channelImageUrl;
-                            final String rssImg = feed.channelImageUrl;
-                            runOnUiThread(() -> {
-                                imageLoader.displayImage(rssImg, imgPodcastCover, R.drawable.ic_launcher);
-                                imageLoader.displayImage(rssImg, imgPodcastCoverMini, R.drawable.ic_launcher);
-                            });
-                        }
-                    } else {
+                    // Always prefer the RSS feed's own channel image over whatever gpodder/search
+                    // returned (gpodder URLs are often HTTPS CDNs that fail on BB10 SSL).
+                    // If RSS has no image, fall back to what we already have.
+                    if (feed.channelImageUrl != null && !feed.channelImageUrl.isEmpty()) {
+                        podcast.imageUrl = feed.channelImageUrl;
+                        resolvedImageUrl = feed.channelImageUrl;
+                        final String rssImg = feed.channelImageUrl;
+                        runOnUiThread(() -> {
+                            imageLoader.displayImage(rssImg, imgPodcastCover, R.drawable.ic_launcher);
+                            imageLoader.displayImage(rssImg, imgPodcastCoverMini, R.drawable.ic_launcher);
+                        });
+                    } else if (podcast.imageUrl != null && !podcast.imageUrl.isEmpty()) {
+                        // RSS has no image; keep what search returned (already displayed)
                         resolvedImageUrl = podcast.imageUrl;
                     }
 
