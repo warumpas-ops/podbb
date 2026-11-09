@@ -47,6 +47,8 @@ public class PodcastDetailActivity extends Activity {
 
     private ImageLoader imageLoader;
     private boolean isSubscribed = false;
+    // Best resolved cover URL — updated from RSS feed after load, passed to PlayerActivity
+    private String resolvedImageUrl = null;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -122,6 +124,7 @@ public class PodcastDetailActivity extends Activity {
         }
 
         // Load cover art instantly from cache/disk for both expanded and mini views
+        resolvedImageUrl = imageUrl;
         imageLoader.displayImage(imageUrl, imgPodcastCover, R.drawable.ic_launcher);
         imageLoader.displayImage(imageUrl, imgPodcastCoverMini, R.drawable.ic_launcher);
 
@@ -176,7 +179,7 @@ public class PodcastDetailActivity extends Activity {
             intent.putExtra("episode_duration", ep.durationSeconds);
             intent.putExtra("episode_position", ep.positionSeconds);
             intent.putExtra("podcast_title", title);
-            intent.putExtra("podcast_artwork", podcast.imageUrl);
+            intent.putExtra("podcast_artwork", resolvedImageUrl != null ? resolvedImageUrl : (podcast.imageUrl != null ? podcast.imageUrl : ""));
             intent.putExtra("podcast_feed_url", feedUrl);
             startActivity(intent);
 
@@ -196,75 +199,70 @@ public class PodcastDetailActivity extends Activity {
         if (this.isMinimized == minimize) return;
         this.isMinimized = minimize;
 
-        if (currentAnimator != null && currentAnimator.isRunning()) {
-            currentAnimator.cancel();
-        }
+        // Cancel any in-progress ViewPropertyAnimator on both panels
+        panelExpanded.animate().cancel();
+        panelMinimized.animate().cancel();
+
+        final int DURATION = 230;
+        final int SLIDE_DP = dpToPx(10);
+
+        // GPU-accelerate both panels for the duration of the animation
+        panelExpanded.setLayerType(View.LAYER_TYPE_HARDWARE, null);
+        panelMinimized.setLayerType(View.LAYER_TYPE_HARDWARE, null);
 
         if (minimize) {
-            // Smoothly collapse Expanded -> Minimized (Search Result Shape)
-            panelMinimized.setVisibility(View.VISIBLE);
+            // ---- Expanded → Minimized ----
+            // Minimized: start below, fade in and slide up into place
             panelMinimized.setAlpha(0f);
+            panelMinimized.setTranslationY(SLIDE_DP);
+            panelMinimized.setVisibility(View.VISIBLE);
 
-            final int startHeight = panelStickyPodcast.getHeight();
-            int targetH = dpToPx(56);
-
-            currentAnimator = ValueAnimator.ofFloat(0f, 1f);
-            currentAnimator.setDuration(200);
-            final int fromH = startHeight > 0 ? startHeight : dpToPx(112);
-            final int toH = targetH;
-
-            currentAnimator.addUpdateListener(animation -> {
-                float f = animation.getAnimatedFraction();
-                panelExpanded.setAlpha(1f - f);
-                panelMinimized.setAlpha(f);
-                ViewGroup.LayoutParams lp = panelStickyPodcast.getLayoutParams();
-                lp.height = (int) (fromH + (toH - fromH) * f);
-                panelStickyPodcast.setLayoutParams(lp);
-            });
-            currentAnimator.addListener(new AnimatorListenerAdapter() {
-                @Override
-                public void onAnimationEnd(Animator animation) {
+            // Fade out + slide up the expanded hero
+            panelExpanded.animate()
+                .alpha(0f)
+                .translationY(-SLIDE_DP)
+                .setDuration(DURATION)
+                .withEndAction(() -> {
                     panelExpanded.setVisibility(View.GONE);
-                    panelMinimized.setAlpha(1f);
-                    ViewGroup.LayoutParams lp = panelStickyPodcast.getLayoutParams();
-                    lp.height = ViewGroup.LayoutParams.WRAP_CONTENT;
-                    panelStickyPodcast.setLayoutParams(lp);
-                }
-            });
-            currentAnimator.start();
+                    panelExpanded.setTranslationY(0f);
+                    panelExpanded.setLayerType(View.LAYER_TYPE_NONE, null);
+                })
+                .start();
+
+            // Fade in + slide up the minimized card
+            panelMinimized.animate()
+                .alpha(1f)
+                .translationY(0f)
+                .setDuration(DURATION)
+                .withEndAction(() -> panelMinimized.setLayerType(View.LAYER_TYPE_NONE, null))
+                .start();
 
         } else {
-            // Smoothly expand Minimized -> Expanded (Hero View)
-            panelExpanded.setVisibility(View.VISIBLE);
+            // ---- Minimized → Expanded ----
+            // Expanded: start above, fade in and slide down into place
             panelExpanded.setAlpha(0f);
+            panelExpanded.setTranslationY(-SLIDE_DP);
+            panelExpanded.setVisibility(View.VISIBLE);
 
-            final int startHeight = panelStickyPodcast.getHeight();
-            int targetH = dpToPx(112);
-
-            currentAnimator = ValueAnimator.ofFloat(0f, 1f);
-            currentAnimator.setDuration(200);
-            final int fromH = startHeight > 0 ? startHeight : dpToPx(56);
-            final int toH = targetH;
-
-            currentAnimator.addUpdateListener(animation -> {
-                float f = animation.getAnimatedFraction();
-                panelMinimized.setAlpha(1f - f);
-                panelExpanded.setAlpha(f);
-                ViewGroup.LayoutParams lp = panelStickyPodcast.getLayoutParams();
-                lp.height = (int) (fromH + (toH - fromH) * f);
-                panelStickyPodcast.setLayoutParams(lp);
-            });
-            currentAnimator.addListener(new AnimatorListenerAdapter() {
-                @Override
-                public void onAnimationEnd(Animator animation) {
+            // Fade out + slide down the minimized card
+            panelMinimized.animate()
+                .alpha(0f)
+                .translationY(SLIDE_DP)
+                .setDuration(DURATION)
+                .withEndAction(() -> {
                     panelMinimized.setVisibility(View.GONE);
-                    panelExpanded.setAlpha(1f);
-                    ViewGroup.LayoutParams lp = panelStickyPodcast.getLayoutParams();
-                    lp.height = ViewGroup.LayoutParams.WRAP_CONTENT;
-                    panelStickyPodcast.setLayoutParams(lp);
-                }
-            });
-            currentAnimator.start();
+                    panelMinimized.setTranslationY(0f);
+                    panelMinimized.setLayerType(View.LAYER_TYPE_NONE, null);
+                })
+                .start();
+
+            // Fade in + slide down the expanded hero
+            panelExpanded.animate()
+                .alpha(1f)
+                .translationY(0f)
+                .setDuration(DURATION)
+                .withEndAction(() -> panelExpanded.setLayerType(View.LAYER_TYPE_NONE, null))
+                .start();
         }
     }
 
@@ -292,11 +290,13 @@ public class PodcastDetailActivity extends Activity {
                             podcast.imageUrl = feed.channelImageUrl;
                         }
                         final String rssImg = feed.channelImageUrl;
+                        resolvedImageUrl = rssImg; // best available cover for PlayerActivity
                         runOnUiThread(() -> {
                             imageLoader.displayImage(rssImg, imgPodcastCover, R.drawable.ic_launcher);
                             imageLoader.displayImage(rssImg, imgPodcastCoverMini, R.drawable.ic_launcher);
                         });
                     } else if (podcast.imageUrl != null && !podcast.imageUrl.isEmpty()) {
+                        resolvedImageUrl = podcast.imageUrl;
                         final String existingImg = podcast.imageUrl;
                         runOnUiThread(() -> {
                             imageLoader.displayImage(existingImg, imgPodcastCover, R.drawable.ic_launcher);
