@@ -243,24 +243,19 @@ public class PodcastDetailActivity extends Activity {
                 try {
                     final RssFetcher.FeedResult feed = RssFetcher.fetchFeed(feedUrl);
 
-                    // Update cover: prefer RSS channelImageUrl, fall back to what we already have
-                    if (feed.channelImageUrl != null && !feed.channelImageUrl.isEmpty()) {
-                        if (podcast.imageUrl == null || podcast.imageUrl.isEmpty()) {
+                    // Only replace cover if we didn't have one from search/library
+                    if (podcast.imageUrl == null || podcast.imageUrl.isEmpty()) {
+                        if (feed.channelImageUrl != null && !feed.channelImageUrl.isEmpty()) {
                             podcast.imageUrl = feed.channelImageUrl;
+                            resolvedImageUrl = feed.channelImageUrl;
+                            final String rssImg = feed.channelImageUrl;
+                            runOnUiThread(() -> {
+                                imageLoader.displayImage(rssImg, imgPodcastCover, R.drawable.ic_launcher);
+                                imageLoader.displayImage(rssImg, imgPodcastCoverMini, R.drawable.ic_launcher);
+                            });
                         }
-                        final String rssImg = feed.channelImageUrl;
-                        resolvedImageUrl = rssImg; // best available cover for PlayerActivity
-                        runOnUiThread(() -> {
-                            imageLoader.displayImage(rssImg, imgPodcastCover, R.drawable.ic_launcher);
-                            imageLoader.displayImage(rssImg, imgPodcastCoverMini, R.drawable.ic_launcher);
-                        });
-                    } else if (podcast.imageUrl != null && !podcast.imageUrl.isEmpty()) {
+                    } else {
                         resolvedImageUrl = podcast.imageUrl;
-                        final String existingImg = podcast.imageUrl;
-                        runOnUiThread(() -> {
-                            imageLoader.displayImage(existingImg, imgPodcastCover, R.drawable.ic_launcher);
-                            imageLoader.displayImage(existingImg, imgPodcastCoverMini, R.drawable.ic_launcher);
-                        });
                     }
 
                     if (isSubscribed && podcast.id > 0) {

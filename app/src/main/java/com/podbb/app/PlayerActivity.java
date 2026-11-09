@@ -44,6 +44,17 @@ public class PlayerActivity extends Activity {
             bound = true;
 
             Episode curr = playerService.getCurrentEpisode();
+            if (curr != null) {
+                if ((artworkUrl == null || artworkUrl.isEmpty()) && curr.imageUrl != null && !curr.imageUrl.isEmpty()) {
+                    artworkUrl = curr.imageUrl;
+                    ImageLoader.getInstance(PlayerActivity.this).displayImage(artworkUrl, imgArtwork, R.drawable.ic_launcher);
+                }
+                if ((podcastTitle == null || podcastTitle.isEmpty()) && curr.podcastTitle != null && !curr.podcastTitle.isEmpty()) {
+                    podcastTitle = curr.podcastTitle;
+                    tvPodcastName.setText(podcastTitle);
+                }
+            }
+
             if (curr == null || curr.id != episodeId || !playerService.isPrepared()) {
                 Episode ep = new Episode();
                 ep.id = episodeId;
@@ -53,6 +64,7 @@ public class PlayerActivity extends Activity {
                 ep.durationSeconds = durationSeconds;
                 ep.positionSeconds = positionSeconds;
                 ep.podcastTitle = podcastTitle;
+                ep.imageUrl = artworkUrl;
                 btnPlayPause.setText("[Connecting...]");
                 playerService.playEpisode(ep);
             }
@@ -114,6 +126,22 @@ public class PlayerActivity extends Activity {
         // Load cover artwork via high-speed disk/memory ImageLoader
         ImageLoader.getInstance(this).displayImage(artworkUrl, imgArtwork, R.drawable.ic_launcher);
 
+        // If artworkUrl is not present yet, resolve from database asynchronously
+        if ((artworkUrl == null || artworkUrl.isEmpty()) && episodeId > 0) {
+            new Thread(() -> {
+                Episode dbEp = db.getEpisode(episodeId);
+                if (dbEp != null && dbEp.podcastId > 0) {
+                    Podcast p = db.getPodcast(dbEp.podcastId);
+                    if (p != null && p.imageUrl != null && !p.imageUrl.isEmpty()) {
+                        artworkUrl = p.imageUrl;
+                        runOnUiThread(() -> {
+                            ImageLoader.getInstance(PlayerActivity.this).displayImage(artworkUrl, imgArtwork, R.drawable.ic_launcher);
+                        });
+                    }
+                }
+            }).start();
+        }
+
         if (durationSeconds > 0) {
             seekBar.setMax(durationSeconds * 1000);
             tvDuration.setText(formatMs(durationSeconds * 1000));
@@ -131,6 +159,7 @@ public class PlayerActivity extends Activity {
                     ep.durationSeconds = durationSeconds;
                     ep.positionSeconds = positionSeconds;
                     ep.podcastTitle = podcastTitle;
+                    ep.imageUrl = artworkUrl;
                     playerService.playEpisode(ep);
                 } else {
                     playerService.togglePlayPause();

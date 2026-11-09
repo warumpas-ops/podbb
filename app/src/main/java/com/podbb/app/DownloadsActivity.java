@@ -44,6 +44,7 @@ public class DownloadsActivity extends Activity {
             intent.putExtra("episode_duration", ep.durationSeconds);
             intent.putExtra("episode_position", ep.positionSeconds);
             intent.putExtra("podcast_title", ep.podcastTitle != null ? ep.podcastTitle : "Offline Podcast");
+            intent.putExtra("podcast_artwork", ep.imageUrl != null ? ep.imageUrl : "");
             startActivity(intent);
         });
 

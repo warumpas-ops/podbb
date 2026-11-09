@@ -8,6 +8,7 @@ import android.view.ViewGroup;
 import android.widget.BaseAdapter;
 import android.widget.Button;
 import android.widget.EditText;
+import android.widget.ImageView;
 import android.widget.ListView;
 import android.widget.TextView;
 import java.util.ArrayList;
@@ -117,6 +118,7 @@ public class SearchActivity extends Activity {
                 convertView = getLayoutInflater().inflate(R.layout.item_search_result, parent, false);
             }
             Podcast p = results.get(position);
+            ImageView imgCoverThumb = (ImageView) convertView.findViewById(R.id.imgCoverThumb);
             TextView tvTitle = (TextView) convertView.findViewById(R.id.tvTitle);
             TextView tvPreview = (TextView) convertView.findViewById(R.id.tvPreview);
             TextView tvCategory = (TextView) convertView.findViewById(R.id.tvCategory);
@@ -126,6 +128,10 @@ public class SearchActivity extends Activity {
                         : (p.description != null ? p.description.replaceAll("<[^>]*>", "").trim() : "Podcast");
             if (tvPreview != null) tvPreview.setText(desc);
             if (tvCategory != null) tvCategory.setText("[tap to view]");
+
+            if (imgCoverThumb != null) {
+                ImageLoader.getInstance(SearchActivity.this).displayImage(p.imageUrl, imgCoverThumb, R.drawable.ic_launcher);
+            }
 
             FontHelper.apply(convertView, SearchActivity.this);
             return convertView;

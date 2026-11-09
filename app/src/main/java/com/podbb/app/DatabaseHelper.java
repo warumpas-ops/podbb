@@ -163,10 +163,53 @@ public class DatabaseHelper extends SQLiteOpenHelper {
         return list;
     }
 
+    public Podcast getPodcast(long id) {
+        SQLiteDatabase db = getReadableDatabase();
+        Cursor c = db.query("podcasts", null, "id=?", new String[]{String.valueOf(id)}, null, null, null);
+        Podcast p = null;
+        if (c.moveToFirst()) {
+            p = new Podcast();
+            p.id = c.getLong(c.getColumnIndex("id"));
+            p.title = c.getString(c.getColumnIndex("title"));
+            p.author = c.getString(c.getColumnIndex("author"));
+            p.description = c.getString(c.getColumnIndex("description"));
+            p.imageUrl = c.getString(c.getColumnIndex("image_url"));
+            p.feedUrl = c.getString(c.getColumnIndex("feed_url"));
+            p.itunesId = c.getString(c.getColumnIndex("itunes_id"));
+            p.subscribedAt = c.getLong(c.getColumnIndex("subscribed_at"));
+            p.isSubscribed = true;
+        }
+        c.close();
+        return p;
+    }
+
+    public Episode getEpisode(long id) {
+        SQLiteDatabase db = getReadableDatabase();
+        Cursor c = db.query("episodes", null, "id=?", new String[]{String.valueOf(id)}, null, null, null);
+        Episode e = null;
+        if (c.moveToFirst()) {
+            e = new Episode();
+            e.id = c.getLong(c.getColumnIndex("id"));
+            e.podcastId = c.getLong(c.getColumnIndex("podcast_id"));
+            e.guid = c.getString(c.getColumnIndex("guid"));
+            e.title = c.getString(c.getColumnIndex("title"));
+            e.description = c.getString(c.getColumnIndex("description"));
+            e.audioUrl = c.getString(c.getColumnIndex("audio_url"));
+            e.pubDate = c.getLong(c.getColumnIndex("pub_date"));
+            e.durationSeconds = c.getInt(c.getColumnIndex("duration_seconds"));
+            e.filePath = c.getString(c.getColumnIndex("file_path"));
+            e.downloaded = c.getInt(c.getColumnIndex("downloaded")) == 1;
+            e.listened = c.getInt(c.getColumnIndex("listened")) == 1;
+            e.positionSeconds = c.getInt(c.getColumnIndex("position_seconds"));
+        }
+        c.close();
+        return e;
+    }
+
     public List<Episode> getDownloadedEpisodes() {
         List<Episode> list = new ArrayList<>();
         SQLiteDatabase db = getReadableDatabase();
-        String sql = "SELECT e.*, p.title as podcast_title FROM episodes e JOIN podcasts p ON e.podcast_id = p.id WHERE e.downloaded=1 ORDER BY e.pub_date DESC";
+        String sql = "SELECT e.*, p.title as podcast_title, p.image_url as podcast_image FROM episodes e JOIN podcasts p ON e.podcast_id = p.id WHERE e.downloaded=1 ORDER BY e.pub_date DESC";
         Cursor c = db.rawQuery(sql, null);
         while (c.moveToNext()) {
             Episode e = new Episode();
@@ -178,6 +221,7 @@ public class DatabaseHelper extends SQLiteOpenHelper {
             e.durationSeconds = c.getInt(c.getColumnIndex("duration_seconds"));
             e.downloaded = true;
             e.podcastTitle = c.getString(c.getColumnIndex("podcast_title"));
+            e.imageUrl = c.getString(c.getColumnIndex("podcast_image"));
             list.add(e);
         }
         c.close();

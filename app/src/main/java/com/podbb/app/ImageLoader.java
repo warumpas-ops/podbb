@@ -64,7 +64,10 @@ public class ImageLoader {
             return;
         }
 
-        imageView.setImageResource(placeholderRes);
+        // Only set placeholder if ImageView does not already have an image
+        if (placeholderRes != 0 && imageView.getDrawable() == null) {
+            imageView.setImageResource(placeholderRes);
+        }
 
         executor.execute(new Runnable() {
             @Override
@@ -151,7 +154,7 @@ public class ImageLoader {
             FileOutputStream out = new FileOutputStream(tempFile);
             byte[] buf = new byte[8192];
             int read, totalBytes = 0;
-            final int maxBytes = 2 * 1024 * 1024; // 2MB cap for BB10 RAM
+            final int maxBytes = 8 * 1024 * 1024; // 8MB cap (podcast covers are 1400x1400 up to 3000x3000px)
 
             while ((read = in.read(buf)) != -1) {
                 out.write(buf, 0, read);
@@ -171,14 +174,14 @@ public class ImageLoader {
             if (targetFile.exists()) targetFile.delete();
             tempFile.renameTo(targetFile);
 
-            // Decode at display size (max 160×160 for BB10 Q5 list items)
+            // Decode at crisp display size (max 240x240 for BB10 Q5 720x720 screen)
             BitmapFactory.Options opts = new BitmapFactory.Options();
             opts.inJustDecodeBounds = true;
             BitmapFactory.decodeFile(targetFile.getAbsolutePath(), opts);
 
             if (opts.outWidth <= 0 || opts.outHeight <= 0) return null; // not an image
 
-            opts.inSampleSize = calculateInSampleSize(opts, 160, 160);
+            opts.inSampleSize = calculateInSampleSize(opts, 240, 240);
             opts.inJustDecodeBounds = false;
             opts.inPreferredConfig = Bitmap.Config.RGB_565;
 
