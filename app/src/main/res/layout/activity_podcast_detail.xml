@@ -68,7 +68,7 @@
         android:id="@+id/panelStickyPodcast"
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
-        android:background="@color/surface">
+        android:background="@color/header_bg">
 
         <!-- 1. EXPANDED HERO VIEW (default, unscrolled state) -->
         <LinearLayout

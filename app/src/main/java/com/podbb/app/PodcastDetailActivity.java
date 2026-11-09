@@ -148,16 +148,23 @@ public class PodcastDetailActivity extends Activity {
 
         // ── Spotify-style scroll: alpha tied directly to scroll offset while dragging.
         // Snap to fully expanded or fully collapsed ONLY on SCROLL_STATE_IDLE.
-        // During a live drag, both panels are VISIBLE and their alphas crossfade
-        // continuously — no state machine, no threshold jitter.
+        // When collapsed, panelExpanded MUST be GONE so no empty space remains.
         listEpisodes.setOnScrollListener(new AbsListView.OnScrollListener() {
             @Override
             public void onScrollStateChanged(AbsListView view, int scrollState) {
                 if (scrollState == SCROLL_STATE_IDLE) {
-                    // Finger lifted — snap to nearest state with a short animation
-                    boolean shouldCollapse = lastScrollProgress >= 0.5f ||
-                            view.getFirstVisiblePosition() > 0;
-                    snapHero(shouldCollapse);
+                    if (view.getFirstVisiblePosition() > 0) {
+                        // Definitely scrolled down: ensure fully collapsed and expanded is GONE
+                        panelExpanded.setVisibility(View.GONE);
+                        panelExpanded.setAlpha(0f);
+                        panelMinimized.setVisibility(View.VISIBLE);
+                        panelMinimized.setAlpha(1f);
+                        isMinimized = true;
+                    } else {
+                        // At top item: snap based on progress threshold
+                        boolean shouldCollapse = lastScrollProgress >= 0.5f;
+                        snapHero(shouldCollapse);
+                    }
                 }
             }
 
@@ -178,18 +185,41 @@ public class PodcastDetailActivity extends Activity {
                 float progress = Math.min(1f, Math.max(0f, (float) rawTop / dpToPx(COLLAPSE_DP)));
                 lastScrollProgress = progress;
 
-                // Make both panels visible during the drag so the crossfade is smooth
-                if (panelExpanded.getVisibility() != View.VISIBLE) {
+                if (progress >= 1f) {
+                    // Fully collapsed — expanded view MUST be GONE so zero empty space remains!
+                    if (panelExpanded.getVisibility() != View.GONE) {
+                        panelExpanded.setVisibility(View.GONE);
+                    }
+                    if (panelMinimized.getVisibility() != View.VISIBLE) {
+                        panelMinimized.setVisibility(View.VISIBLE);
+                    }
                     panelExpanded.setAlpha(0f);
-                    panelExpanded.setVisibility(View.VISIBLE);
-                }
-                if (panelMinimized.getVisibility() != View.VISIBLE) {
-                    panelMinimized.setAlpha(0f);
-                    panelMinimized.setVisibility(View.VISIBLE);
-                }
+                    panelMinimized.setAlpha(1f);
+                    isMinimized = true;
 
-                panelExpanded.setAlpha(1f - progress);
-                panelMinimized.setAlpha(progress);
+                } else if (progress <= 0f) {
+                    // Fully expanded at the top — minimized view MUST be GONE!
+                    if (panelMinimized.getVisibility() != View.GONE) {
+                        panelMinimized.setVisibility(View.GONE);
+                    }
+                    if (panelExpanded.getVisibility() != View.VISIBLE) {
+                        panelExpanded.setVisibility(View.VISIBLE);
+                    }
+                    panelMinimized.setAlpha(0f);
+                    panelExpanded.setAlpha(1f);
+                    isMinimized = false;
+
+                } else {
+                    // In-between: both visible for smooth continuous crossfade
+                    if (panelExpanded.getVisibility() != View.VISIBLE) {
+                        panelExpanded.setVisibility(View.VISIBLE);
+                    }
+                    if (panelMinimized.getVisibility() != View.VISIBLE) {
+                        panelMinimized.setVisibility(View.VISIBLE);
+                    }
+                    panelExpanded.setAlpha(1f - progress);
+                    panelMinimized.setAlpha(progress);
+                }
             }
         });
 
@@ -223,14 +253,10 @@ public class PodcastDetailActivity extends Activity {
 
     /**
      * Spotify-style snap: animates to fully expanded or fully collapsed state.
-     * Called only when the user lifts their finger (SCROLL_STATE_IDLE).
-     * During live drag, alpha is set directly in onScroll with no animation.
+     * Called when the user lifts their finger (SCROLL_STATE_IDLE) or taps the panel.
+     * When collapsing, panelExpanded is set to GONE so zero black space remains.
      */
     private void snapHero(final boolean collapse) {
-        if (this.isMinimized == collapse &&
-                (collapse ? panelMinimized.getAlpha() == 1f : panelExpanded.getAlpha() == 1f)) {
-            return; // already snapped
-        }
         this.isMinimized = collapse;
 
         panelExpanded.animate().cancel();
@@ -238,25 +264,39 @@ public class PodcastDetailActivity extends Activity {
 
         final int DURATION = 150;
 
-        // Ensure both visible for the snap animation
-        if (panelExpanded.getVisibility() != View.VISIBLE) {
-            panelExpanded.setAlpha(collapse ? 1f : 0f);
-            panelExpanded.setVisibility(View.VISIBLE);
-        }
-        if (panelMinimized.getVisibility() != View.VISIBLE) {
-            panelMinimized.setAlpha(collapse ? 0f : 1f);
-            panelMinimized.setVisibility(View.VISIBLE);
-        }
-
         if (collapse) {
-            panelExpanded.animate().alpha(0f).setDuration(DURATION)
-                    .withEndAction(() -> panelExpanded.setVisibility(View.GONE))
-                    .start();
+            if (panelMinimized.getVisibility() != View.VISIBLE) {
+                panelMinimized.setAlpha(0f);
+                panelMinimized.setVisibility(View.VISIBLE);
+            }
+            if (panelExpanded.getVisibility() == View.VISIBLE) {
+                panelExpanded.animate().alpha(0f).setDuration(DURATION)
+                        .withEndAction(() -> {
+                            panelExpanded.setVisibility(View.GONE);
+                            panelExpanded.setAlpha(0f);
+                        })
+                        .start();
+            } else {
+                panelExpanded.setVisibility(View.GONE);
+                panelExpanded.setAlpha(0f);
+            }
             panelMinimized.animate().alpha(1f).setDuration(DURATION).start();
         } else {
-            panelMinimized.animate().alpha(0f).setDuration(DURATION)
-                    .withEndAction(() -> panelMinimized.setVisibility(View.GONE))
-                    .start();
+            if (panelExpanded.getVisibility() != View.VISIBLE) {
+                panelExpanded.setAlpha(0f);
+                panelExpanded.setVisibility(View.VISIBLE);
+            }
+            if (panelMinimized.getVisibility() == View.VISIBLE) {
+                panelMinimized.animate().alpha(0f).setDuration(DURATION)
+                        .withEndAction(() -> {
+                            panelMinimized.setVisibility(View.GONE);
+                            panelMinimized.setAlpha(0f);
+                        })
+                        .start();
+            } else {
+                panelMinimized.setVisibility(View.GONE);
+                panelMinimized.setAlpha(0f);
+            }
             panelExpanded.animate().alpha(1f).setDuration(DURATION).start();
         }
     }
