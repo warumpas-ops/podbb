@@ -265,12 +265,19 @@ public class HttpHelper {
 
     public static String fetchString(String urlStr) throws Exception {
         HttpURLConnection conn = openWithRedirects(urlStr);
+        // Tell server we prefer plain text — avoids gzip on BB10 runtimes
+        conn.setRequestProperty("Accept-Encoding", "identity");
         int code = conn.getResponseCode();
         if (code < 200 || code >= 300) {
             conn.disconnect();
             throw new Exception("HTTP " + code);
         }
-        InputStream in = new BufferedInputStream(conn.getInputStream());
+        InputStream raw = conn.getInputStream();
+        // Defensive: decompress gzip even if we asked for identity (some CDNs ignore it)
+        String encoding = conn.getHeaderField("Content-Encoding");
+        InputStream in = "gzip".equalsIgnoreCase(encoding)
+                ? new java.util.zip.GZIPInputStream(raw)
+                : new BufferedInputStream(raw);
         ByteArrayOutputStream out = new ByteArrayOutputStream();
         byte[] buffer = new byte[8192];
         int bytesRead;

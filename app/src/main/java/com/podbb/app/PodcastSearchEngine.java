@@ -1,5 +1,7 @@
 package com.podbb.app;
 
+import android.util.Log;
+
 import org.json.JSONArray;
 import org.json.JSONObject;
 
@@ -13,9 +15,12 @@ import java.util.List;
 
 public class PodcastSearchEngine {
 
+    private static final String TAG = "PodcastSearchEngine";
+
     /**
      * Search podcasts using Apple iTunes Podcast Search API first (over 3M+ active shows),
-     * with seamless fallback to gpodder.net.
+     * with fallback to iTunes Charts RSS feed for toplist.
+     * gpodder.net removed — service has been dead since 2024 (HTTP 502).
      */
     public static List<Podcast> search(String query) throws Exception {
         List<Podcast> results = new ArrayList<>();
@@ -41,9 +46,12 @@ public class PodcastSearchEngine {
         try {
             String encoded = URLEncoder.encode(query, "UTF-8");
             String itunesUrl = "https://itunes.apple.com/search?term=" + encoded + "&entity=podcast&limit=60";
+            Log.d(TAG, "iTunes search: " + itunesUrl);
             String jsonStr = HttpHelper.fetchString(itunesUrl);
+            Log.d(TAG, "iTunes response length: " + jsonStr.length());
             JSONObject root = new JSONObject(jsonStr);
             JSONArray items = root.optJSONArray("results");
+            Log.d(TAG, "iTunes resultCount: " + root.optInt("resultCount", -1));
 
             if (items != null && items.length() > 0) {
                 for (int i = 0; i < items.length(); i++) {
@@ -67,49 +75,22 @@ public class PodcastSearchEngine {
                     results.add(p);
                 }
             }
-        } catch (Exception ignored) {}
+        } catch (Exception e) {
+            Log.e(TAG, "iTunes search failed: " + e.getMessage(), e);
+        }
 
-        // If iTunes returned results, return them
+        // If iTunes returned results, we're done
         if (!results.isEmpty()) {
+            Log.d(TAG, "Returning " + results.size() + " iTunes results");
             return results;
         }
 
-        // Strategy 2: gpodder.net plain HTTP search (fallback)
+        // Strategy 2: iTunes search with alternate term form (broader match)
         try {
             String encoded = URLEncoder.encode(query, "UTF-8");
-            String urlStr = "http://gpodder.net/search.json?q=" + encoded;
-            String jsonStr = fetchHttpJson(urlStr);
-            JSONArray items = new JSONArray(jsonStr);
-
-            for (int i = 0; i < items.length(); i++) {
-                JSONObject obj = items.getJSONObject(i);
-                String feedUrl = obj.optString("url", "");
-                if (feedUrl.isEmpty()) continue;
-
-                String title = obj.optString("title", "Unknown Podcast");
-                String author = obj.optString("author", "");
-                String desc = obj.optString("description", "");
-                String logo = obj.optString("logo_url", "");
-                if (logo.isEmpty()) logo = obj.optString("scaled_logo_url", "");
-                String id = String.valueOf(feedUrl.hashCode());
-
-                Podcast p = new Podcast(title, author, desc, logo, feedUrl, id);
-                results.add(p);
-            }
-        } catch (Exception ignored) {}
-
-        return results;
-    }
-
-    /**
-     * Fetches top podcasts: tries iTunes general popular podcasts first, then gpodder toplist.
-     */
-    public static List<Podcast> getToplist() {
-        List<Podcast> results = new ArrayList<>();
-
-        // Try iTunes top podcasts
-        try {
-            String itunesUrl = "https://itunes.apple.com/search?term=podcast&entity=podcast&limit=60";
+            String itunesUrl = "https://itunes.apple.com/search?term=" + encoded
+                    + "&media=podcast&limit=50&country=US";
+            Log.d(TAG, "iTunes fallback search: " + itunesUrl);
             String jsonStr = HttpHelper.fetchString(itunesUrl);
             JSONObject root = new JSONObject(jsonStr);
             JSONArray items = root.optJSONArray("results");
@@ -119,50 +100,138 @@ public class PodcastSearchEngine {
                     JSONObject obj = items.getJSONObject(i);
                     String feedUrl = obj.optString("feedUrl", "");
                     if (feedUrl.isEmpty()) continue;
-
                     String title = obj.optString("collectionName", obj.optString("trackName", "Podcast"));
                     String author = obj.optString("artistName", "");
-                    String desc = obj.optString("primaryGenreName", "Top Podcast");
-
+                    String desc = obj.optString("primaryGenreName", "Podcast");
                     String logo = obj.optString("artworkUrl600", "");
                     if (logo.isEmpty()) logo = obj.optString("artworkUrl100", "");
-                    if (logo.isEmpty()) logo = obj.optString("artworkUrl60", "");
-
                     String collectionId = String.valueOf(obj.optLong("collectionId", 0));
                     if ("0".equals(collectionId)) collectionId = String.valueOf(feedUrl.hashCode());
-
                     Podcast p = new Podcast(title, author, desc, logo, feedUrl, collectionId);
                     results.add(p);
                 }
             }
-        } catch (Exception ignored) {}
+        } catch (Exception e) {
+            Log.e(TAG, "iTunes fallback search failed: " + e.getMessage(), e);
+        }
+
+        Log.d(TAG, "Final result count: " + results.size());
+        return results;
+    }
+
+    /**
+     * Fetches top podcasts via iTunes Charts JSON feed (Apple Podcasts Top 100).
+     * Falls back to a plain iTunes keyword search for "news" if the charts API fails.
+     */
+    public static List<Podcast> getToplist() {
+        List<Podcast> results = new ArrayList<>();
+
+        // iTunes Podcast Charts API — returns top 100 podcasts as JSON
+        try {
+            String chartsUrl = "https://itunes.apple.com/us/rss/toppodcasts/limit=50/json";
+            Log.d(TAG, "Fetching toplist from iTunes Charts: " + chartsUrl);
+            String jsonStr = HttpHelper.fetchString(chartsUrl);
+            JSONObject root = new JSONObject(jsonStr);
+            JSONObject feed = root.optJSONObject("feed");
+            if (feed != null) {
+                JSONArray entries = feed.optJSONArray("entry");
+                if (entries != null && entries.length() > 0) {
+                    for (int i = 0; i < entries.length(); i++) {
+                        JSONObject entry = entries.getJSONObject(i);
+
+                        // Extract name
+                        String title = "";
+                        JSONObject nameObj = entry.optJSONObject("im:name");
+                        if (nameObj != null) title = nameObj.optString("label", "");
+
+                        // Extract artist
+                        String author = "";
+                        JSONObject artistObj = entry.optJSONObject("im:artist");
+                        if (artistObj != null) author = artistObj.optString("label", "");
+
+                        // Extract artwork (last entry is highest-res)
+                        String logo = "";
+                        JSONArray images = entry.optJSONArray("im:image");
+                        if (images != null && images.length() > 0) {
+                            JSONObject lastImg = images.optJSONObject(images.length() - 1);
+                            if (lastImg != null) logo = lastImg.optString("label", "");
+                        }
+
+                        // Extract iTunes ID and build feedUrl via iTunes Lookup API
+                        String itunesId = "";
+                        JSONObject idObj = entry.optJSONObject("id");
+                        if (idObj != null) {
+                            JSONObject attrs = idObj.optJSONObject("attributes");
+                            if (attrs != null) itunesId = attrs.optString("im:id", "");
+                        }
+
+                        if (itunesId.isEmpty() || title.isEmpty()) continue;
+
+                        // Use iTunes lookup to get feedUrl for this podcast ID
+                        String feedUrl = lookupFeedUrl(itunesId);
+                        if (feedUrl == null || feedUrl.isEmpty()) continue;
+
+                        String desc = "Top Podcast";
+                        Podcast p = new Podcast(title, author, desc, logo, feedUrl, itunesId);
+                        results.add(p);
+
+                        // Limit to 20 for toplist (each requires a lookup call)
+                        if (results.size() >= 20) break;
+                    }
+                }
+            }
+        } catch (Exception e) {
+            Log.e(TAG, "iTunes Charts toplist failed: " + e.getMessage(), e);
+        }
 
         if (!results.isEmpty()) return results;
 
-        // Fallback: gpodder toplist
+        // Fallback: plain iTunes search for "news" as a generic interesting toplist
         try {
-            String urlStr = "http://gpodder.net/toplist/50.json";
-            String jsonStr = fetchHttpJson(urlStr);
-            JSONArray items = new JSONArray(jsonStr);
+            String itunesUrl = "https://itunes.apple.com/search?term=technology+news&entity=podcast&limit=50";
+            String jsonStr = HttpHelper.fetchString(itunesUrl);
+            JSONObject root = new JSONObject(jsonStr);
+            JSONArray items = root.optJSONArray("results");
 
-            for (int i = 0; i < items.length(); i++) {
-                JSONObject obj = items.getJSONObject(i);
-                String feedUrl = obj.optString("url", "");
-                if (feedUrl.isEmpty()) continue;
-
-                String title = obj.optString("title", "Podcast");
-                String author = obj.optString("author", "");
-                String desc = obj.optString("description", "");
-                String logo = obj.optString("logo_url", "");
-                if (logo.isEmpty()) logo = obj.optString("scaled_logo_url", "");
-                String id = String.valueOf(feedUrl.hashCode());
-
-                Podcast p = new Podcast(title, author, desc, logo, feedUrl, id);
-                results.add(p);
+            if (items != null && items.length() > 0) {
+                for (int i = 0; i < items.length(); i++) {
+                    JSONObject obj = items.getJSONObject(i);
+                    String feedUrl = obj.optString("feedUrl", "");
+                    if (feedUrl.isEmpty()) continue;
+                    String title = obj.optString("collectionName", obj.optString("trackName", "Podcast"));
+                    String author = obj.optString("artistName", "");
+                    String desc = obj.optString("primaryGenreName", "Top Podcast");
+                    String logo = obj.optString("artworkUrl600", "");
+                    if (logo.isEmpty()) logo = obj.optString("artworkUrl100", "");
+                    String collectionId = String.valueOf(obj.optLong("collectionId", 0));
+                    if ("0".equals(collectionId)) collectionId = String.valueOf(feedUrl.hashCode());
+                    Podcast p = new Podcast(title, author, desc, logo, feedUrl, collectionId);
+                    results.add(p);
+                }
             }
-        } catch (Exception ignored) {}
+        } catch (Exception e) {
+            Log.e(TAG, "iTunes toplist fallback failed: " + e.getMessage(), e);
+        }
 
         return results;
+    }
+
+    /**
+     * Looks up a podcast's RSS feedUrl from its iTunes collection ID using the iTunes Lookup API.
+     */
+    private static String lookupFeedUrl(String itunesId) {
+        try {
+            String lookupUrl = "https://itunes.apple.com/lookup?id=" + itunesId + "&entity=podcast";
+            String jsonStr = HttpHelper.fetchString(lookupUrl);
+            JSONObject root = new JSONObject(jsonStr);
+            JSONArray results = root.optJSONArray("results");
+            if (results != null && results.length() > 0) {
+                return results.getJSONObject(0).optString("feedUrl", "");
+            }
+        } catch (Exception e) {
+            Log.w(TAG, "lookupFeedUrl failed for id=" + itunesId + ": " + e.getMessage());
+        }
+        return "";
     }
 
     private static String fetchHttpJson(String urlStr) throws Exception {
